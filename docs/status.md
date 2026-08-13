@@ -89,6 +89,29 @@ earned its keep:
   user to cut 15 squares when 11 of them needed a diagonal cut. Caught by reading
   a rendered cut list, not by a test; now grouped by shape, with a regression test.
 
+## Packaging gotchas (fixed)
+
+- `npm run serve` used to be `npx serve dist`. Because `dist/` is gitignored, a
+  fresh clone had nothing to serve and every request 404'd. `serve` and
+  `preview` now build first.
+- `vite.config.ts` imported `vite-plugin-singlefile` at the top level, so any
+  checkout whose `node_modules` predated that dependency failed with
+  "failed to load config" on a plain `npm run dev`. It is now imported lazily,
+  and only when `SINGLE_FILE=1` actually asks for it.
+
+## Cloud IDEs (Codespaces, Gitpod)
+
+Vite ≥ 6 rejects requests whose `Host` header it does not recognise, returning
+`403 Blocked request`. Every cloud IDE reaches the dev server through a
+forwarded hostname, so the stock config refuses all of them — and a proxy that
+turns the 403 into its own error page makes this look like a 404 with no obvious
+cause. `vite.config.ts` now allows the common forwarding domains, binds
+`0.0.0.0`, and points HMR at 443 under `CODESPACES`. `.devcontainer/` installs
+dependencies and forwards 5173/3000 automatically.
+
+Verified by sending a `Host: …app.github.dev` header at a local dev server:
+403 before the change, 200 after, with unrelated hosts still refused.
+
 ## Not built
 
 - **Drag-to-reorder** in the layer stack (buttons work; the plan asks for drag).
