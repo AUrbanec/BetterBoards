@@ -52,6 +52,12 @@ export default defineConfig(async () => {
     server: {
       // bind 0.0.0.0 so a container's port forwarding can reach the server
       host: true,
+      port: 5173,
+      // Fail loudly if 5173 is taken rather than quietly moving to 5174. A
+      // forwarded URL names one port: if the server slides to the next one, the
+      // URL you were given now points at nothing and answers 404, which reads
+      // as "the app is broken" instead of "it is next door".
+      strictPort: true,
       allowedHosts: FORWARDED_HOSTS,
       // Codespaces terminates TLS at the proxy on 443; without this the HMR
       // socket tries the raw dev port and never connects, so edits look dead.
@@ -59,6 +65,8 @@ export default defineConfig(async () => {
     },
     preview: {
       host: true,
+      port: 3000,
+      strictPort: true,
       allowedHosts: FORWARDED_HOSTS,
     },
     build: {
