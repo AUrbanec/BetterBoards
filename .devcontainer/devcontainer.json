@@ -2,7 +2,6 @@
   "name": "BetterBoards",
   "image": "mcr.microsoft.com/devcontainers/typescript-node:1-22-bookworm",
   "postCreateCommand": "npm install",
-  "forwardPorts": [5173, 3000],
   "portsAttributes": {
     "5173": { "label": "BetterBoards dev (npm run dev)", "onAutoForward": "openPreview" },
     "3000": { "label": "BetterBoards built app (npm run serve)", "onAutoForward": "notify" }

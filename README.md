@@ -22,32 +22,62 @@ To use it as a local app:
 npm run serve         # builds, then serves dist/ on localhost:3000
 npm run serve:single  # builds the single-file bundle and serves it
 npm run build:single  # dist-single/index.html — one file, opens with no server at all
+npm run doctor        # diagnoses "it will not load" — see below
 ```
 
 `npm run serve` and `npm run preview` build first, so they work from a clean
 checkout (`dist/` is gitignored and will not exist until something builds it).
+Both serve the build with `vite preview`, which needs no extra download and
+already knows the host settings below.
 
 ### Running in Codespaces, Gitpod, or another cloud IDE
 
-It works out of the box — `npm run dev`, then open the forwarded port (5173).
+It works out of the box — `npm run dev`, then open the URL it prints. In a cloud
+IDE the commands print the exact forwarded URL to open, because `localhost` is
+not reachable from your browser there.
 
-Two things are configured for you, and both are worth knowing about if you hit
-trouble:
+**If you get a 404, you are almost certainly on the wrong port.** The two
+commands run two different servers:
+
+| command | port | URL |
+| --- | --- | --- |
+| `npm run dev` | 5173 | `https://<codespace>-5173.app.github.dev/` |
+| `npm run serve` | 3000 | `https://<codespace>-3000.app.github.dev/` |
+
+A forwarded port with nothing listening on it answers **HTTP 404**, and the
+browser then draws its own "No webpage was found for the web address" page. That
+looks like a broken app but means *nothing is serving that port* — either the
+other command is the one running, or the server has not finished starting
+(`npm run serve` type-checks and builds first, which takes a few seconds).
+
+Run `npm run doctor` to have all of this checked for you: it reports which ports
+have a server, prints the URL for each, boots a dev and a preview server on spare
+ports, and requests them through your real forwarded hostname.
+
+Three things are configured for you, worth knowing if you hit trouble:
 
 - **Vite ≥ 6 refuses unrecognised `Host` headers** with `403 Blocked request.
   This host is not allowed.` Because you reach a cloud IDE through a forwarded
-  hostname rather than localhost, the bare default rejects every request — and
-  the platform proxy often shows that as a generic error page, so it can read as
-  a 404. `vite.config.ts` allows the usual forwarding domains
-  (`*.app.github.dev`, `*.gitpod.io`, and friends). Add yours to
-  `FORWARDED_HOSTS` if you use a different one.
+  hostname rather than localhost, the bare default rejects every request.
+  `vite.config.ts` allows the usual forwarding domains (`*.app.github.dev`,
+  `*.gitpod.io`, and friends). Add yours to `FORWARDED_HOSTS` if you use a
+  different one.
+- **The ports are pinned** (`strictPort`). Without it Vite quietly moves to the
+  next free port when 5173 is busy, and the forwarded URL you were given then
+  points at nothing — another 404. Now it fails loudly instead, naming the
+  conflict.
 - **The dev server binds `0.0.0.0`** so port forwarding can reach it, and HMR is
   pointed at port 443 when `CODESPACES` is set, since TLS terminates at the
   proxy.
 
-If the forwarded URL still 404s, check the port's **visibility** in the Ports
-panel — a private port opened from a browser session without access to the
-codespace returns a GitHub error page, not your app.
+`.devcontainer/devcontainer.json` deliberately does **not** pre-declare
+`forwardPorts`: doing so publishes those URLs at container start, before any
+server exists, so the Ports panel advertises links that 404 until you start
+something. Ports forward on their own as soon as a server listens.
+
+If a forwarded URL still 404s with the right port running, check that port's
+**visibility** in the Ports panel — a private port opened from a browser session
+without access to the codespace will not reach your server.
 
 `dist/` is a plain static bundle — any file server works, and it runs fully offline. The
 single-file build inlines everything into one ~330 KB HTML file you can open straight from disk.

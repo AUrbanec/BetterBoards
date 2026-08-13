@@ -5,16 +5,17 @@
   "description": "BetterBoards \u2014 local-first cutting board design studio: deterministic geometry, kerf-aware cut lists, blueprints, and build instructions.",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "node scripts/where.mjs 5173 && vite",
     "build": "tsc --noEmit && vite build",
     "build:single": "tsc --noEmit && SINGLE_FILE=1 vite build",
-    "preview": "npm run build && vite preview",
-    "serve": "npm run build && npx serve dist",
+    "serve": "npm run build && node scripts/where.mjs 3000 && vite preview",
+    "serve:single": "npm run build:single && node scripts/where.mjs 3000 && vite preview --outDir dist-single",
+    "preview": "npm run serve",
+    "doctor": "node scripts/doctor.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "demo": "tsx scripts/demo.ts",
-    "serve:single": "npm run build:single && npx serve dist-single"
+    "demo": "tsx scripts/demo.ts"
   },
   "dependencies": {
     "react": "^18.3.1",
