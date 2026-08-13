@@ -1,4 +1,7 @@
-# Cutting Board Studio — Implementation Plan for Claude Code
+# BetterBoards — Implementation Plan
+
+> Originally drafted as "Cutting Board Studio"; the project was renamed **BetterBoards**.
+> Kept as the design record. See [`status.md`](./status.md) for what is built today.
 
 A locally run, browser-based design tool for woodworkers to design cutting boards (edge-grain, end-grain, chevron, brick, and 3D-illusion patterns), then generate accurate blueprints, kerf-aware cut lists, procedural build instructions, and optional CNC output (SVG/DXF/G-code). All geometry is deterministic math — **no LLMs anywhere in the product**.
 
