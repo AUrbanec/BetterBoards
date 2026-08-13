@@ -81,6 +81,19 @@ earned its keep:
   "failed to load config" on a plain `npm run dev`. It is now imported lazily,
   and only when `SINGLE_FILE=1` actually asks for it.
 
+## Cloud IDEs (Codespaces, Gitpod)
+
+Vite ≥ 6 rejects requests whose `Host` header it does not recognise, returning
+`403 Blocked request`. Every cloud IDE reaches the dev server through a
+forwarded hostname, so the stock config refuses all of them — and a proxy that
+turns the 403 into its own error page makes this look like a 404 with no obvious
+cause. `vite.config.ts` now allows the common forwarding domains, binds
+`0.0.0.0`, and points HMR at 443 under `CODESPACES`. `.devcontainer/` installs
+dependencies and forwards 5173/3000 automatically.
+
+Verified by sending a `Host: …app.github.dev` header at a local dev server:
+403 before the change, 200 after, with unrelated hosts still refused.
+
 ## Not built
 
 - **Drag-to-reorder** in the layer stack (buttons work; the plan asks for drag).

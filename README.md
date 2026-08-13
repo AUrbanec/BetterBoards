@@ -27,6 +27,28 @@ npm run build:single  # dist-single/index.html — one file, opens with no serve
 `npm run serve` and `npm run preview` build first, so they work from a clean
 checkout (`dist/` is gitignored and will not exist until something builds it).
 
+### Running in Codespaces, Gitpod, or another cloud IDE
+
+It works out of the box — `npm run dev`, then open the forwarded port (5173).
+
+Two things are configured for you, and both are worth knowing about if you hit
+trouble:
+
+- **Vite ≥ 6 refuses unrecognised `Host` headers** with `403 Blocked request.
+  This host is not allowed.` Because you reach a cloud IDE through a forwarded
+  hostname rather than localhost, the bare default rejects every request — and
+  the platform proxy often shows that as a generic error page, so it can read as
+  a 404. `vite.config.ts` allows the usual forwarding domains
+  (`*.app.github.dev`, `*.gitpod.io`, and friends). Add yours to
+  `FORWARDED_HOSTS` if you use a different one.
+- **The dev server binds `0.0.0.0`** so port forwarding can reach it, and HMR is
+  pointed at port 443 when `CODESPACES` is set, since TLS terminates at the
+  proxy.
+
+If the forwarded URL still 404s, check the port's **visibility** in the Ports
+panel — a private port opened from a browser session without access to the
+codespace returns a GitHub error page, not your app.
+
 `dist/` is a plain static bundle — any file server works, and it runs fully offline. The
 single-file build inlines everything into one ~330 KB HTML file you can open straight from disk.
 
