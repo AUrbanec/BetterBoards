@@ -11,6 +11,9 @@
  */
 
 import { assertInt, type Nm } from '../units';
+import { isPlainRect, outlineToRing, resolveOutline, type Outline } from '../geometry/outline';
+import { area as polygonArea, clipByConvex, intersectionArea, type Ring } from '../geometry/polygon';
+import { buildBlockField, type PieceSpec } from '../patterns/blocks';
 import {
   expandLayers,
   type BoardSpec,
@@ -23,6 +26,7 @@ import {
   type PipelineIssue,
   type PipelineResult,
   type SliceTransform,
+  type StripCut,
   type StripSpec,
 } from './types';
 
@@ -152,10 +156,223 @@ export function runPipeline(board: BoardSpec): PipelineResult {
     return emptyResult(issues);
   }
 
-  if (board.construction.kind === 'edgeGrain') {
-    return edgeGrainPipeline(board, strips, slabWidth, issues);
+  const partial =
+    board.construction.kind === 'blocks'
+      ? blockPipeline(board, issues)
+      : board.construction.kind === 'edgeGrain'
+        ? edgeGrainPipeline(board, strips, slabWidth, issues)
+        : endGrainPipeline(board, strips, slabWidth, slabThicknessAfterPlaning, issues);
+
+  return attachOutline(board, partial);
+}
+
+/* -- 2-D block assembly ---------------------------------------------- */
+
+function blockPipeline(board: BoardSpec, issues: PipelineIssue[]): PartialResult {
+  const construction = board.construction as Extract<BoardSpec['construction'], { kind: 'blocks' }>;
+  const L = board.targetLength;
+  const W = board.targetWidth;
+
+  if (W <= 0) {
+    issues.push({ id: 'bad-width', level: 'error', message: 'Block patterns need an explicit finished width.' });
+    return emptyResult(issues);
   }
-  return endGrainPipeline(board, strips, slabWidth, slabThicknessAfterPlaning, issues);
+  const cell =
+    construction.pattern.kind === 'tumbling' ? construction.pattern.side : construction.pattern.unit;
+  if (cell <= 0) {
+    issues.push({ id: 'bad-unit', level: 'error', message: 'The pattern unit size must be positive.' });
+    return emptyResult(issues);
+  }
+  if (cell > Math.min(L, W)) {
+    issues.push({
+      id: 'unit-too-big',
+      level: 'error',
+      message: 'The pattern unit is larger than the board — reduce it or enlarge the board.',
+    });
+    return emptyResult(issues);
+  }
+
+  const field = buildBlockField(construction.pattern, L, W);
+  const thickness = board.stockThickness - board.cleanup.planingLoss;
+
+  const partials = field.pieces.filter((p) => p.partial).reduce((t, p) => t + p.count, 0);
+  if (partials > 0) {
+    issues.push({
+      id: 'block-partials',
+      level: 'warning',
+      message: `${partials} pieces are trimmed by the board edge. Cut them full size and trim the panel after glue-up — the cut list lists them separately.`,
+    });
+  }
+
+  const totalPieces = field.pieces.reduce((t, p) => t + p.count, 0);
+
+  return {
+    ok: !issues.some((i) => i.level === 'error'),
+    issues,
+    grid: { map: { kind: 'poly' }, rows: [], polys: field.polys, boardLength: L, boardWidth: W },
+    finished: { length: L, width: W, thickness },
+    glueUp1: {
+      strips: expandPieces(field.pieces, board.stockThickness),
+      slabWidth: W,
+      slabLength: L,
+      slabThickness: board.stockThickness,
+      slabThicknessAfterPlaning: thickness,
+      ripCount: Math.max(0, totalPieces - 1),
+    },
+    pieces: field.pieces,
+    blockNotes: field.notes,
+  };
+}
+
+/** One StripCut per physical piece, so board-feet math counts every one. */
+function expandPieces(pieces: PieceSpec[], thickness: Nm): StripCut[] {
+  const out: StripCut[] = [];
+  for (const p of pieces) {
+    for (let i = 0; i < p.count; i++) {
+      out.push({ species: p.species, width: p.w, thickness, length: p.h });
+    }
+  }
+  return out;
+}
+
+/** Everything the construction stages produce, before the shape is applied. */
+type PartialResult = Omit<PipelineResult, 'outline'>;
+
+/**
+ * Resolve the finished shape against the blank the pattern produced. The
+ * outline is always inscribed in that blank — cutting a shape never changes the
+ * glue-up, it only removes material from a rectangle you already glued.
+ */
+function attachOutline(board: BoardSpec, partial: PartialResult): PipelineResult {
+  const outline = resolveOutline(board.outline, partial.finished.length, partial.finished.width);
+  const issues = partial.issues;
+
+  if (board.outline?.kind === 'paddle') {
+    const p = board.outline;
+    if (p.handleL >= partial.finished.length * 0.6) {
+      issues.push({
+        id: 'handle-too-long',
+        level: 'warning',
+        message: 'The handle is longer than 60% of the board and has been clamped — lengthen the board or shorten the handle.',
+      });
+    }
+    if (p.handleW > partial.finished.width) {
+      issues.push({
+        id: 'handle-too-wide',
+        level: 'warning',
+        message: 'The handle is wider than the board and has been clamped to the full width.',
+      });
+    }
+  }
+  if (board.outline?.kind === 'polygon') {
+    const pts = board.outline.points;
+    if (pts.length < 3) {
+      issues.push({ id: 'polygon-degenerate', level: 'error', message: 'A custom outline needs at least three points.' });
+    } else {
+      const b = { maxX: Math.max(...pts.map((p) => p.x)), maxY: Math.max(...pts.map((p) => p.y)) };
+      if (b.maxX > partial.finished.length + 1 || b.maxY > partial.finished.width + 1) {
+        issues.push({
+          id: 'outline-exceeds-blank',
+          level: 'error',
+          message: 'The custom outline is larger than the glued blank. Enlarge the board or shrink the outline.',
+        });
+      }
+    }
+  }
+
+  return {
+    ...partial,
+    ok: partial.ok && !issues.some((i) => i.level === 'error'),
+    outline,
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* Outline-aware area accounting                                       */
+/* ------------------------------------------------------------------ */
+
+/** The quad a grid cell occupies in board space (float nm — angled rows shear). */
+export function cellQuadPoints(grid: PipelineResult['grid'], rowIndex: number, cellIndex: number): Ring {
+  const row = grid.rows[rowIndex];
+  const c = row.cells[cellIndex];
+  switch (grid.map.kind) {
+    // Block fields carry their own polygons; they have no rows to index.
+    case 'poly':
+      return [];
+    case 'rows-y':
+      return [
+        { x: c.u0, y: row.v0 },
+        { x: c.u1, y: row.v0 },
+        { x: c.u1, y: row.v1 },
+        { x: c.u0, y: row.v1 },
+      ];
+    case 'rows-x': {
+      const h = row.v1 - row.v0;
+      const y0 = c.u0 * row.scale - row.offset;
+      const y1 = c.u1 * row.scale - row.offset;
+      const d = row.shear * h;
+      return [
+        { x: row.v0, y: y0 },
+        { x: row.v1, y: y0 + d },
+        { x: row.v1, y: y1 + d },
+        { x: row.v0, y: y1 },
+      ];
+    }
+    case 'diag': {
+      const a = (grid.map.angleDeg * Math.PI) / 180;
+      const dir = { x: Math.cos(a), y: Math.sin(a) };
+      const nrm = { x: -Math.sin(a), y: Math.cos(a) };
+      const rowsExtent = grid.rows.length ? grid.rows[grid.rows.length - 1].v1 : 0;
+      const cx = grid.boardLength / 2;
+      const cy = grid.boardWidth / 2;
+      const at = (v: number, t: number) => ({
+        x: cx + nrm.x * (v - rowsExtent / 2 + row.offset) + dir.x * t,
+        y: cy + nrm.y * (v - rowsExtent / 2 + row.offset) + dir.y * t,
+      });
+      const t0 = c.u0 - row.run / 2;
+      const t1 = c.u1 - row.run / 2;
+      return [at(row.v0, t0), at(row.v0, t1), at(row.v1, t1), at(row.v1, t0)];
+    }
+  }
+}
+
+/**
+ * Visible surface area per species, clipped to the outline. Used for the legend
+ * percentages and the open-pore lint, both of which must reflect the *finished*
+ * board, not the blank.
+ */
+export function speciesAreas(result: PipelineResult): { bySpecies: Map<string, number>; total: number } {
+  const bySpecies = new Map<string, number>();
+  let total = 0;
+  const plain = isPlainRect(result.outline);
+  const ring: Ring | null = plain ? null : outlineToRing(result.outline);
+
+  for (const poly of result.grid.polys ?? []) {
+    const a = ring ? intersectionArea(ring, poly.points) : polygonArea(poly.points);
+    if (a <= 0) continue;
+    bySpecies.set(poly.species, (bySpecies.get(poly.species) ?? 0) + a);
+    total += a;
+  }
+
+  for (let ri = 0; ri < result.grid.rows.length; ri++) {
+    const row = result.grid.rows[ri];
+    for (let ci = 0; ci < row.cells.length; ci++) {
+      const quad = cellQuadPoints(result.grid, ri, ci);
+      const a = ring ? intersectionArea(ring, quad) : Math.abs((row.v1 - row.v0) * (row.cells[ci].u1 - row.cells[ci].u0));
+      if (a <= 0) continue;
+      const species = row.cells[ci].species;
+      bySpecies.set(species, (bySpecies.get(species) ?? 0) + a);
+      total += a;
+    }
+  }
+  return { bySpecies, total };
+}
+
+/** Cell quads clipped to the outline — what the preview actually fills. */
+export function clippedCellQuad(result: PipelineResult, rowIndex: number, cellIndex: number): Ring {
+  const quad = cellQuadPoints(result.grid, rowIndex, cellIndex);
+  if (isPlainRect(result.outline)) return quad;
+  return clipByConvex(outlineToRing(result.outline), quad);
 }
 
 function emptyResult(issues: PipelineIssue[]): PipelineResult {
@@ -172,6 +389,7 @@ function emptyResult(issues: PipelineIssue[]): PipelineResult {
       slabThicknessAfterPlaning: 0,
       ripCount: 0,
     },
+    outline: { kind: 'rect', w: 0, h: 0, cornerRadius: 0 },
   };
 }
 
@@ -182,7 +400,7 @@ function edgeGrainPipeline(
   strips: StripSpec[],
   slabWidth: Nm,
   issues: PipelineIssue[],
-): PipelineResult {
+): PartialResult {
   const { cleanup } = board;
   const construction = board.construction as Extract<BoardSpec['construction'], { kind: 'edgeGrain' }>;
   const angle = construction.diagonalAngleDeg ?? 0;
@@ -269,7 +487,7 @@ function endGrainPipeline(
   slabWidth: Nm,
   slabThicknessAfterPlaning: Nm,
   issues: PipelineIssue[],
-): PipelineResult {
+): PartialResult {
   const construction = board.construction as Extract<BoardSpec['construction'], { kind: 'endGrain' }>;
   const { kerf, cleanup } = board;
   const angleDeg = construction.crosscut.angleDeg;

@@ -5,6 +5,7 @@
  */
 
 import { formatCutDim, formatDim, type UnitMode } from '../engine/units';
+import { isPlainRect } from '../engine/geometry/outline';
 import type { BoardSpec, PipelineResult } from '../engine/construction/types';
 import type { CutList, SpeciesInfoLookup } from '../engine/cutlist/cutlist';
 import { formatSliceList, speciesLetters } from './shared';
@@ -39,6 +40,7 @@ export function generateInstructions(
     steps.push({ n: ++n, title, body, safety });
   };
 
+  const blocks = board.construction.kind === 'blocks';
   const endGrain = board.construction.kind === 'endGrain';
   const angled = endGrain && (board.construction as { crosscut: { angleDeg: number } }).crosscut.angleDeg !== 90;
   const diagonal = board.construction.kind === 'edgeGrain' && (board.construction.diagonalAngleDeg ?? 0) !== 0;
@@ -52,7 +54,42 @@ export function generateInstructions(
     `Mill all stock flat and square to ${f(board.stockThickness)} thick. Material needed (includes ${Math.round(board.wasteFactor * 100)}% waste factor${board.roughStock ? ' and 1/4″ rough-milling allowances' : ''}):\n${stockLines}`,
   );
 
+  if (blocks && result.pieces) {
+    // 2-D block assembly: cut every piece, then glue the field up flat.
+    const angled = result.pieces.some((p) => p.angleDeg);
+    const pieceLines = result.pieces
+      .map(
+        (p) =>
+          `• ${p.count} × ${name(p.species)} — ${f(p.w)} × ${f(p.h)}` +
+          (p.angleDeg ? ` at ${p.angleDeg}°` : '') +
+          (p.partial ? ' (edge pieces — cut full size and trim after glue-up)' : ''),
+      )
+      .join('\n');
+    add(
+      'Cut the pieces',
+      `With a ${fd(board.kerf)}-kerf blade, cut every piece to ${f(board.stockThickness)} thick:\n${pieceLines}\n` +
+        (result.blockNotes ?? []).join('\n'),
+      angled
+        ? 'Set the miter gauge once and cut every rhombus from the same setup — the illusion falls apart if the angles drift.'
+        : 'Use a stop block so identical pieces really are identical; the pattern shows every inconsistency.',
+    );
+    add(
+      'Dry-fit the field',
+      `Lay the whole ${f(result.finished.length)} × ${f(result.finished.width)} field out dry before any glue goes on. Check that the pattern reads correctly and that the rows close up without gaps.`,
+    );
+    add(
+      'Glue up in sections',
+      `Glue the field up as a flat panel, in manageable sections rather than all at once — the joints run in two directions, so a single mass glue-up cannot be clamped square. Flatten each section, then join the sections. Clamp with cauls above and below.`,
+      'Work in sections. Trying to clamp the whole field at once is the classic way to end up with a panel that will not flatten.',
+    );
+    add(
+      'Flatten the panel',
+      `Bring the panel to its final ${f(result.finished.thickness)} thickness with a drum sander or a router sled — the grain runs in several directions, so a planer will tear out somewhere no matter which way you feed it.`,
+    );
+  }
+
   // 2 — rip
+  if (!blocks) {
   const ripLines = cutlist.ripSchedule
     .map((g) => `• Rip ${g.count} ${g.count === 1 ? 'strip' : 'strips'} of ${name(g.species)} (${letters.get(g.species) ?? '?'}) — ${f(g.width)} wide × ${f(g.thickness)} thick × ${f(g.length)} long`)
     .join('\n');
@@ -74,6 +111,7 @@ export function generateInstructions(
     'Flatten the slab',
     `After the glue cures (24 h for full strength), scrape squeeze-out and flatten both faces to ${f(result.glueUp1.slabThicknessAfterPlaning)} — the allowances assume ${fd(board.cleanup.planingLoss)} of thickness lost here.`,
   );
+  } // end !blocks
 
   if (endGrain && result.crosscut) {
     const cc = result.crosscut;
@@ -153,6 +191,35 @@ export function generateInstructions(
     `Square the ends and edges to the finished ${f(result.finished.length)} × ${f(result.finished.width)}. Take equal nibbles from both sides to keep the pattern centered.`,
     endGrain ? 'Back up every end-grain exit edge with a sacrificial scrap — blowout is guaranteed otherwise.' : undefined,
   );
+
+  // shaping (non-rectangular outlines only)
+  if (!isPlainRect(result.outline)) {
+    const o = result.outline;
+    let how: string;
+    switch (o.kind) {
+      case 'rect':
+        how = `Mark a ${f(o.cornerRadius)} radius at each corner (a compass or a can of the right size works), then cut and sand to the line.`;
+        break;
+      case 'ellipse':
+        how = `Mark the center at ${f(o.rx)} × ${f(o.ry)} from one corner, then scribe the ellipse — a trammel, or the two-pins-and-a-loop-of-string method with foci on the long axis.`;
+        break;
+      case 'paddle':
+        how =
+          `Lay out the centerline along the length. The body is ${f(o.bodyW)} × ${f(o.bodyH)} with ${f(o.r)} corners; ` +
+          `the handle runs ${f(o.handleL)} past the body, ${f(o.handleW)} wide, centered on that line with a ${f(Math.round(o.handleW / 2))} radius at its end.`;
+        break;
+      case 'polygon':
+        how = `Transfer the ${o.points.length} outline points from the blueprint's shaping page, connect them, and cut to the line.`;
+        break;
+    }
+    add(
+      'Cut the outline',
+      `${how} Cut just outside the line at the bandsaw or with a jigsaw, then flush-trim to a template or sand to the line. The blank you glued up is already the right size — you are only removing waste here.`,
+      endGrain
+        ? 'End grain tears out badly on curves. Take light passes, climb-cut the last whisker, or sand rather than route.'
+        : undefined,
+    );
+  }
 
   // finish
   add(

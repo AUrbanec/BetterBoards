@@ -6,6 +6,7 @@
 
 import { IN } from '../engine/units';
 import type { CellGrid, GridRow } from '../engine/construction/types';
+import { isPlainRect, outlineToPath, type Outline } from '../engine/geometry/outline';
 import { escapeXml } from './shared';
 
 export interface SpeciesVisual {
@@ -23,6 +24,13 @@ export interface BoardSvgOptions {
   showGlueLines?: boolean;
   /** id prefix so several boards can share one document */
   idPrefix?: string;
+  /**
+   * Finished shape. Cells are clipped to it via an SVG clipPath, so arcs stay
+   * mathematically exact in print instead of being flattened to chords.
+   */
+  outline?: Outline;
+  /** Draw the blank's rectangle behind the shape (shows what gets cut away). */
+  showBlank?: boolean;
 }
 
 type Pt = [number, number];
@@ -31,6 +39,8 @@ type Pt = [number, number];
 export function cellQuad(grid: CellGrid, row: GridRow, cellIndex: number): Pt[] {
   const c = row.cells[cellIndex];
   switch (grid.map.kind) {
+    case 'poly':
+      return []; // block fields render from grid.polys instead
     case 'rows-y': {
       // u→x, v→y
       return [
@@ -101,8 +111,17 @@ export function renderBoardGroup(
   // species defs: grain stripe patterns along the grain direction
   const speciesIds = new Set<string>();
   for (const row of grid.rows) for (const c of row.cells) speciesIds.add(c.species);
-  const grainAngle = grid.map.kind === 'rows-y' ? 0 : grid.map.kind === 'rows-x' ? 90 : grid.map.angleDeg;
-  let defs = `<clipPath id="${pre}-clip"><rect x="0" y="0" width="${W.toFixed(2)}" height="${H.toFixed(2)}"/></clipPath>`;
+  for (const p of grid.polys ?? []) speciesIds.add(p.species);
+  const grainAngle =
+    grid.map.kind === 'rows-y' ? 0
+    : grid.map.kind === 'rows-x' ? 90
+    : grid.map.kind === 'diag' ? grid.map.angleDeg
+    : 0;
+  const shaped = opts.outline && !isPlainRect(opts.outline);
+  const clipShape = shaped
+    ? `<path d="${outlineToPath(opts.outline!, s)}"/>`
+    : `<rect x="0" y="0" width="${W.toFixed(2)}" height="${H.toFixed(2)}"/>`;
+  let defs = `<clipPath id="${pre}-clip">${clipShape}</clipPath>`;
   for (const id of speciesIds) {
     const v = visual(id);
     defs += `<pattern id="${pre}-grain-${id}" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(${grainAngle})">` +
@@ -112,7 +131,12 @@ export function renderBoardGroup(
       `</pattern>`;
   }
 
-  let body = `<g clip-path="url(#${pre}-clip)">`;
+  let body = '';
+  if (shaped && opts.showBlank) {
+    // the rectangle you glue up, with the waste shown faintly around the shape
+    body += `<rect x="0" y="0" width="${W.toFixed(2)}" height="${H.toFixed(2)}" fill="#efe7da" stroke="#b9ab93" stroke-width="0.8" stroke-dasharray="5,4"/>`;
+  }
+  body += `<g clip-path="url(#${pre}-clip)">`;
   // background (shows through if angled coverage has gaps — makes problems visible)
   body += `<rect x="0" y="0" width="${W.toFixed(2)}" height="${H.toFixed(2)}" fill="#f3ede2"/>`;
 
@@ -143,9 +167,37 @@ export function renderBoardGroup(
       }
     });
   });
+  // 2-D block fields: explicit polygons rather than row/interval cells
+  (grid.polys ?? []).forEach((poly, pi) => {
+    const pts = poly.points.map((p) => [p.x * s, p.y * s] as Pt);
+    if (pts.length < 3) return;
+    const d = `M${pts.map((p) => `${p[0].toFixed(2)},${p[1].toFixed(2)}`).join('L')}Z`;
+    const v = visual(poly.species);
+    const shade = 0.92 + jitter(pi, poly.points.length) * 0.13;
+    body += `<path d="${d}" fill="${v.hex}"/>`;
+    body += `<path d="${d}" fill="url(#${pre}-grain-${poly.species})" opacity="${(0.5 * shade).toFixed(3)}"/>`;
+    if (shade < 1) body += `<path d="${d}" fill="#2b1d0e" opacity="${((1 - shade) * 0.35).toFixed(3)}"/>`;
+    if (showGlue) body += `<path d="${d}" fill="none" stroke="#3a2c1a" stroke-opacity="0.45" stroke-width="0.7"/>`;
+    if (opts.showLabels) {
+      const cx = pts.reduce((t, p) => t + p[0], 0) / pts.length;
+      const cy = pts.reduce((t, p) => t + p[1], 0) / pts.length;
+      const xs = pts.map((p) => p[0]);
+      const ys = pts.map((p) => p[1]);
+      const minSide = Math.min(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+      if (minSide > 14) {
+        labels.push(
+          `<text x="${cx.toFixed(1)}" y="${cy.toFixed(1)}" font-size="${Math.min(13, minSide * 0.5).toFixed(1)}" text-anchor="middle" dominant-baseline="central" fill="#1a120a" opacity="0.55" font-family="ui-monospace, monospace">${escapeXml(v.letter)}</text>`,
+        );
+      }
+    }
+  });
+
   body += labels.join('');
   body += `</g>`;
-  body += `<rect x="0" y="0" width="${W.toFixed(2)}" height="${H.toFixed(2)}" fill="none" stroke="#241809" stroke-width="1.4"/>`;
+  // finished edge — the actual cut line
+  body += shaped
+    ? `<path d="${outlineToPath(opts.outline!, s)}" fill="none" stroke="#241809" stroke-width="1.4"/>`
+    : `<rect x="0" y="0" width="${W.toFixed(2)}" height="${H.toFixed(2)}" fill="none" stroke="#241809" stroke-width="1.4"/>`;
 
   return { defs, body, widthPx: W, heightPx: H };
 }

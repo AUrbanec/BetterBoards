@@ -1,4 +1,7 @@
 import type { Nm } from '../units';
+import type { Outline, OutlineSpec } from '../geometry/outline';
+import type { CncOptions } from '../cnc/types';
+import type { BlockPattern, PieceSpec } from '../patterns/blocks';
 
 export type SpeciesId = string;
 
@@ -44,6 +47,13 @@ export interface Crosscut {
 
 export type Construction =
   | {
+      /** 2-D block assembly: pieces cut to size and glued up as a flat panel. */
+      kind: 'blocks';
+      pattern: BlockPattern;
+      /** Kept so switching back to a strip construction preserves the stack. */
+      layers: LayerGroup[];
+    }
+  | {
       kind: 'edgeGrain';
       layers: LayerGroup[];
       /** 0/undefined = straight stripes. Otherwise stripes run at this angle (deg) to the length axis; the rectangle is cut from an oversized striped panel. */
@@ -86,6 +96,14 @@ export interface BoardSpec {
   roughStock: boolean;
   /** Shifts which part of the stripe run is visible (angled/diagonal patterns). */
   patternOffset: Nm;
+  /**
+   * Finished shape, inscribed in the blank. Omitted = plain rectangle.
+   * The outline never changes the glue-up — only the preview, the blank-size
+   * check, and the CNC profile.
+   */
+  outline?: OutlineSpec;
+  /** CNC operations, when the user has enabled the module. */
+  cnc?: CncOptions;
 }
 
 /* ------------------------------------------------------------------ */
@@ -120,11 +138,26 @@ export interface GridRow {
 export type GridMap =
   | { kind: 'rows-y' }                    // v→y (across width), u→x (along length): edge grain
   | { kind: 'rows-x' }                    // v→x (along length), u→y (across width): end grain
-  | { kind: 'diag'; angleDeg: number };   // bands at angle in board space: diagonal edge grain
+  | { kind: 'diag'; angleDeg: number }    // bands at angle in board space: diagonal edge grain
+  | { kind: 'poly' };                     // explicit polygons: 2-D block assembly (§5)
+
+/**
+ * A piece placed as an explicit polygon — pinwheel arms, basket-weave slats,
+ * tumbling-block rhombi. Row/interval algebra cannot express these, so they
+ * carry their own board-space geometry.
+ */
+export interface PolyCell {
+  species: SpeciesId;
+  points: { x: number; y: number }[];
+  /** Groups identical pieces in the cut list, e.g. "arm" or "center". */
+  pieceId: string;
+}
 
 export interface CellGrid {
   map: GridMap;
   rows: GridRow[];
+  /** Populated instead of `rows` when map.kind === 'poly'. */
+  polys?: PolyCell[];
   /** Finished board extents (board space). */
   boardLength: Nm; // x
   boardWidth: Nm;  // y
@@ -182,6 +215,12 @@ export interface PipelineResult {
   diagonalPanel?: { panelLength: Nm; panelWidth: Nm; angleDeg: number };
   /** Assembled (pre-trim) dims when they differ from target. */
   assembled?: { length: Nm; width: Nm };
+  /** Finished shape resolved against the blank (always present). */
+  outline: Outline;
+  /** Piece schedule for 2-D block constructions. */
+  pieces?: PieceSpec[];
+  /** Shop notes specific to the block pattern. */
+  blockNotes?: string[];
 }
 
 /** Expand layer groups into the flat ordered strip list. */

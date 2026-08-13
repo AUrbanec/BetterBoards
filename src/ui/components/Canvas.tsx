@@ -3,6 +3,8 @@ import { IN, formatCutDim } from '../../engine/units';
 import { resolveTransform } from '../../engine/construction/pipeline';
 import type { BoardSpec, PerSliceOp, PipelineResult } from '../../engine/construction/types';
 import { renderBoardSvg } from '../../exports/boardSvg';
+import { CncView } from './CncView';
+import { Preview3D } from './Preview3D';
 import { useStore } from '../../store/store';
 import { useContainerWidth, useSpeciesVisual } from '../hooks';
 
@@ -24,6 +26,8 @@ export function Canvas({ result }: { result: PipelineResult }) {
           <button className={view === 'top' ? 'seg-on' : ''} onClick={() => setView('top')}>Top</button>
           <button className={view === 'end' ? 'seg-on' : ''} onClick={() => setView('end')}>Glue-up #1</button>
           {isEnd && <button className={view === 'slab' ? 'seg-on' : ''} onClick={() => setView('slab')}>Crosscut</button>}
+          <button className={view === '3d' ? 'seg-on' : ''} onClick={() => setView('3d')}>3D</button>
+          <button className={view === 'cnc' ? 'seg-on' : ''} onClick={() => setView('cnc')}>CNC</button>
         </div>
         <label className="chk">
           <input type="checkbox" checked={showLabels} onChange={toggleLabels} /> species letters
@@ -32,6 +36,8 @@ export function Canvas({ result }: { result: PipelineResult }) {
       {view === 'top' && <TopView result={result} showLabels={showLabels} />}
       {view === 'end' && <EndView result={result} />}
       {view === 'slab' && isEnd && <SlabView result={result} />}
+      {view === '3d' && result.ok && <Preview3D result={result} />}
+      {view === 'cnc' && result.ok && <CncView result={result} />}
       <div className="canvas-dims">
         {result.ok
           ? `${formatCutDim(result.finished.length, units)} × ${formatCutDim(result.finished.width, units)} × ${formatCutDim(result.finished.thickness, units)}`
@@ -47,11 +53,19 @@ function TopView({ result, showLabels }: { result: PipelineResult; showLabels: b
   const board = useStore((s) => s.board);
 
   const svg = useMemo(() => {
-    if (!result.ok || result.grid.rows.length === 0) return '';
+    // block fields populate `polys` instead of `rows`
+    const empty = result.grid.rows.length === 0 && (result.grid.polys?.length ?? 0) === 0;
+    if (!result.ok || empty) return '';
     const lenIn = result.grid.boardLength / IN;
     const widIn = result.grid.boardWidth / IN;
     const pxPerIn = Math.max(6, Math.min(52, (width - 60) / lenIn, 460 / widIn));
-    return renderBoardSvg(result.grid, visual, { pxPerIn, showLabels, idPrefix: 'live' });
+    return renderBoardSvg(result.grid, visual, {
+      pxPerIn,
+      showLabels,
+      idPrefix: 'live',
+      outline: result.outline,
+      showBlank: true,
+    });
   }, [result, visual, width, showLabels]);
 
   return (

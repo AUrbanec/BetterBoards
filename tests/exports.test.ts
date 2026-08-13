@@ -7,6 +7,7 @@ import { renderBlueprint } from '../src/exports/blueprint';
 import { renderBoardSvg } from '../src/exports/boardSvg';
 import { parseProject, serializeProject } from '../src/exports/project';
 import { TEMPLATE_BY_ID, TEMPLATES } from '../src/engine/patterns/templates';
+import { isPlainRect } from '../src/engine/geometry/outline';
 import { makeSpeciesInfoLookup, SPECIES_BY_ID } from '../src/data/species';
 import { speciesLetters } from '../src/exports/shared';
 import type { SpeciesVisualLookup } from '../src/exports/boardSvg';
@@ -83,7 +84,9 @@ describe('blueprint', () => {
       expect(result.ok, t.id).toBe(true);
       const cl = buildCutList(board, result, info);
       const pages = renderBlueprint(board, result, cl, [], visualFor(t.id), info, 'in-frac');
-      const expectedPages = result.crosscut ? 4 : 3;
+      // board + glue-up, then a crosscut page for end grain and a shaping page
+      // for anything that isn't a plain rectangle, then the cut list
+      const expectedPages = 3 + (result.crosscut ? 1 : 0) + (isPlainRect(result.outline) ? 0 : 1);
       expect(pages.length, t.id).toBe(expectedPages);
       for (const p of pages) {
         expect(p.startsWith('<svg')).toBe(true);

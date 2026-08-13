@@ -119,3 +119,33 @@ decimal. The rounding report sums the absolute errors and warns when the total e
   list rebuilt from the grid equals the original (pipeline inverse).
 - Rendered stripe angle equals θ to 1e-9 for every angle in 25–89°.
 - CIEDE2000 matches all 34 Sharma et al. reference pairs to 1e-4.
+
+## 2-D block assembly (V2)
+
+Row/interval algebra covers everything you can build by ripping, crosscutting, and flipping
+slices. Three patterns cannot be expressed that way, so they emit explicit polygons
+(`CellGrid.polys`) and their cut lists count **pieces** rather than strips and slices:
+
+| Pattern | Tiling | Cut list |
+|---|---|---|
+| Pinwheel | 3u square: four `u × 2u` arms rotating around a `u` hub; adjacent units swap species | pieces, by size |
+| Basket weave | n slats per unit, units alternating horizontal/vertical in a checkerboard | one slat size |
+| Tumbling blocks | Rhombille: three 60°/120° rhombi meeting at each hexagon centre, one species per orientation | strips `s·sin60` wide, crosscut at 60° every `s` |
+
+All three are glued up as flat panels — pieces cut to size, dry-fitted, then glued in sections.
+Tests assert each field tiles its rectangle exactly (total polygon area equals `L × W` to within
+1e-6 relative), which catches gaps and overlaps that would be invisible in a preview.
+
+## Outline offsetting (CNC)
+
+`offsetRing` walks the flattened ring, offsets each edge along its outward normal, then:
+
+- **convex corner, offsetting away from it** → arc over the gap at radius `|delta|`
+- **everything else** (convex inward, reflex either way) → miter at the intersection of the two
+  offset edges
+
+Self-intersection loops are removed by discarding points that end up closer to the source ring
+than `|delta|` — reliable because the ring is densified to 1/32″ segments first. Invariants under
+test: every offset point sits at `|delta|` from the source (±2%), inward offsets stay inside,
+offsetting a circle by `d` gives a concentric circle of radius `r + d`, and an inward offset larger
+than the shape collapses to empty rather than inverting.

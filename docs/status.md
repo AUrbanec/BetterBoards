@@ -1,51 +1,84 @@
 # Build status
 
-Phase numbering follows [`plan.md`](./plan.md) §13.
+Phase numbering follows [`plan.md`](./plan.md) §13. **All eight phases are implemented.**
 
-## Done — MVP (phases 1–5)
+## MVP (phases 1–5)
 
 | Phase | Scope | Acceptance |
 |---|---|---|
 | 1 — Engine foundation | `units.ts`, core types, edge-grain pipeline, cut list | ✅ `npm run demo` prints a correct striped-board cut list |
 | 2 — End grain + transforms | Square & angled crosscut math, slice transforms, cell grid | ✅ Golden 24-slice case and chevron waste triangles verified; property tests pass |
-| 3 — App shell + 2D editor | Vite/React/Zustand, layer editor, canvas views, undo, autosave, units toggle, templates | ✅ Checkerboard designed end to end in a real browser; reload restores state |
-| 4 — Species + recommender | 30-species DB, ΔE2000 module, picker UI, inventory, lint rules | ✅ Color match returns a sensible ranked list; inventory filter and price overrides work |
-| 5 — Exports v1 | Blueprint SVG/print, CSV, instructions, `.cbproj` | ✅ Blueprint pages render correctly; 18″ board draws at 6″ on letter at the stated 1:3 |
+| 3 — App shell + 2D editor | Vite/React/Zustand, layer editor, canvas views, undo, autosave, units, templates | ✅ Checkerboard designed end to end in a real browser; reload restores state |
+| 4 — Species + recommender | 30-species DB, ΔE2000, picker UI, inventory, lint rules | ✅ Colour match returns a sensible ranked list; inventory filter and price overrides work |
+| 5 — Exports v1 | Blueprint SVG/print, CSV, instructions, `.cbproj` | ✅ 18″ board draws at 6″ on letter at the stated 1:3 |
 
-### Verification
+## V2 (phases 6–8)
+
+| Phase | Scope | Acceptance |
+|---|---|---|
+| 6 — Outlines & clipping | Rounded rect, ellipse/circle, filleted paddle, custom polygon; grid clipping; blank validation; shaping blueprint page | ✅ Paddle and round boards preview, clip, and export; glue-up provably unchanged by shape |
+| 7 — CNC | Offsetting, profile with tabs, juice groove, pocket, engraving, machine profiles, G-code + DXF + SVG, visualizer | ✅ Emitted G-code passes the safety audit and round-trips through parse-back; verified in Chromium |
+| 8 — V2 patterns & polish | Pinwheel, basket weave, tumbling blocks, 3-D preview, stock optimizer, single-file build | ✅ All 13 templates render; `dist-single/index.html` runs from `file://` with no server |
+
+### Two deliberate departures from the plan
+
+1. **Engraving font.** The plan specified bundled Hershey fonts. Transcribing
+   Hershey's packed encoding is error-prone, and a corrupted glyph becomes a
+   wrong cut in a real board. `engine/cnc/hershey.ts` instead holds an explicit,
+   readable stroke table (A–Z, 0–9, punctuation) that tests verify stays inside
+   its glyph box. Lowercase engraves as uppercase; unsupported characters are
+   reported rather than guessed.
+2. **3-D preview.** The plan specified three.js. A cutting board is an extruded
+   flat polygon, so `ui/components/Preview3D.tsx` software-projects it to SVG
+   with painter ordering — rotatable, ~250 lines, no 600 KB dependency, and it
+   prints and exports as vector like everything else. Per-species *textures*
+   (as opposed to tones) are the one thing this gives up.
+
+## Verification
 
 ```bash
-npm test           # 51 tests: golden cases, fast-check properties, CIEDE2000, lint, exports
-npm run typecheck  # strict, clean
-npm run build      # clean
-node scripts/smoke.mjs /tmp/shots    # 12-step browser flow, no console errors
+npm test              # 134 tests
+npm run typecheck     # strict, clean
+npm run build         # dist/
+npm run build:single  # dist-single/index.html — one file, runs offline
+npm run demo          # cut list for a striped board
+
+node scripts/smoke.mjs /tmp/shots              # 13-step browser flow
+node scripts/cnc-check.mjs                     # CNC panel → toolpaths → G-code download
+node scripts/v2-check.mjs                      # block patterns + 3-D preview
+node scripts/singlefile-check.mjs              # single-file build from file://
+npx tsx scripts/blueprint-preview.mjs chevron /tmp/bp   # blueprint pages → PNG
 ```
 
-The browser smoke test covers: template gallery → checkerboard → edit a strip width → undo →
-slice arranger → cut list → instructions → color match → lint popover → chevron → crosscut view →
-export drawer → project download → reload restores autosave.
+Test coverage by area: units and fractions (6), CIEDE2000 against the full
+Sharma dataset (5), pipeline golden cases and transforms (15), fast-check
+properties (6), cut list (5), lint rules (7), exports (7), geometry and
+offsetting (19), outlines (14), CNC and G-code safety (29), block patterns and
+the stock optimizer (21).
 
-Blueprint pages were rendered to PNG (`scripts/blueprint-preview.mjs`) and checked visually for
-scale, dimension lines, legends, and table fit.
+## Bugs the checks caught during V2
 
-## Not yet built — V2 (phases 6–8)
+Worth recording, because each one is a case where a test or a visual check
+earned its keep:
 
-These are specified in the plan but not implemented. Nothing in the current code blocks them; the
-pipeline's grid output is the intended input for all three.
+- `offsetRing` had its convex-corner test inverted, so outward offsets mitered
+  instead of arcing — caught by an offset-distance invariant.
+- The G-code depth guard compared `|z|`, so the positive safe-Z retract read as
+  a deep cut. Masked in tests because the default stock thickness happened to
+  equal safe Z; found when a ¾″ board tripped it in the browser.
+- The profile operation stored the pre-reversal path, so the visualizer showed
+  the wrong cut direction for climb milling.
+- The canvas guarded on `rows.length === 0`, which is always true for polygon
+  grids, so block patterns rendered blank.
 
-- **Phase 6 — Outlines & clipping.** Rounded rect, ellipse, paddle, custom polygon; clip the cell
-  grid against the outline for preview; blank-size validation; outline blueprint page.
-  The `Outline` type from plan §4.4 is not yet in the codebase — boards are rectangles today.
-- **Phase 7 — CNC.** Clipper2/polygon-clipping offsetting, perimeter profile with tabs, juice
-  groove, handle pocket, machine profiles, G-code emitter with safety invariants, toolpath
-  visualizer, DXF/SVG per-operation export.
-- **Phase 8 — V2 patterns & polish.** Pinwheel, basket weave, tumbling blocks (2-D block assembly —
-  an extension of Stage C), three.js 3-D preview, 1-D stock optimizer over inventory, Hershey-font
-  engraving, single-file build.
+## Not built
 
-Smaller follow-ups worth noting:
-
-- Drag-to-reorder in the layer stack (buttons work today; the plan asks for drag).
-- Color-blind-safe mode beyond the existing species-letter toggle.
-- Playwright assertions currently live in `scripts/smoke.mjs`; folding them into `npm test` would
-  need a headless-browser test runner setup.
+- **Drag-to-reorder** in the layer stack (buttons work; the plan asks for drag).
+- **Colour-blind-safe mode** beyond the existing species-letter toggle.
+- **True V-carve** engraving (depth-varying width). The plan puts this out of
+  scope; engraving is fixed-depth centreline only.
+- **2-D nesting** in the stock optimizer — it packs by length per part, which is
+  the honest model for rip-then-crosscut. Real sheet nesting would need a
+  guillotine solver.
+- **Browser tests in `npm test`.** The Playwright checks live in `scripts/` and
+  run separately; folding them in needs a headless test-runner setup.

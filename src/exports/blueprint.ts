@@ -8,6 +8,10 @@
  */
 
 import { IN, formatCutDim, formatDim, type UnitMode } from '../engine/units';
+import { speciesAreas } from '../engine/construction/pipeline';
+import { isPlainRect, outlineToPath } from '../engine/geometry/outline';
+import { area as ringArea } from '../engine/geometry/polygon';
+import { outlineToRing } from '../engine/geometry/outline';
 import type { BoardSpec, PipelineResult } from '../engine/construction/types';
 import type { CutList, SpeciesInfoLookup } from '../engine/cutlist/cutlist';
 import type { Lint } from '../engine/validate/rules';
@@ -88,6 +92,28 @@ export function dimV(x: number, y0: number, y1: number, label: string, extLeft =
 
 /* ---------------- table helper ---------------- */
 
+/** Break text into at most `maxLines` lines of ≤ `perLine` characters. */
+function wrapText(text: string, perLine: number, maxLines: number): string[] {
+  const words = text.split(/\s+/);
+  const lines: string[] = [];
+  let cur = '';
+  for (const w of words) {
+    if (cur && cur.length + 1 + w.length > perLine) {
+      lines.push(cur);
+      cur = w;
+      if (lines.length === maxLines) break;
+    } else {
+      cur = cur ? `${cur} ${w}` : w;
+    }
+  }
+  if (lines.length < maxLines && cur) lines.push(cur);
+  if (lines.length === maxLines) {
+    const consumed = lines.join(' ').length;
+    if (consumed < text.length - 1) lines[maxLines - 1] = `${lines[maxLines - 1].replace(/\s+\S*$/, '')}…`;
+  }
+  return lines;
+}
+
 /** Truncate to fit a column: the tables render in 10.5px monospace (~6.4px/char). */
 function clip(text: string, widthPx: number): string {
   const max = Math.max(3, Math.floor((widthPx - 6) / 6.4));
@@ -153,7 +179,13 @@ function page1(ctx: Ctx): string {
   }
   const pxPerIn = pxPerInAt1 / scaleN;
 
-  const g = renderBoardGroup(result.grid, ctx.visual, { pxPerIn, showLabels: true, idPrefix: 'p1' });
+  const g = renderBoardGroup(result.grid, ctx.visual, {
+    pxPerIn,
+    showLabels: true,
+    idPrefix: 'p1',
+    outline: result.outline,
+    showBlank: true,
+  });
   const bx = MARGIN + 30 + (availW - g.widthPx) / 2;
   const by = contentTop + 30;
 
@@ -167,15 +199,9 @@ function page1(ctx: Ctx): string {
   let ly = by + g.heightPx + 56;
   content += `<text x="${MARGIN}" y="${ly - 10}" ${FONT} font-size="12.5" font-weight="bold" fill="${INK}">Species legend</text>`;
   const letters = speciesLetters(ctx.board);
-  const areas = new Map<string, number>();
-  let totalArea = 0;
-  for (const row of result.grid.rows) {
-    for (const c of row.cells) {
-      const a = (c.u1 - c.u0) * (row.v1 - row.v0);
-      areas.set(c.species, (areas.get(c.species) ?? 0) + a);
-      totalArea += a;
-    }
-  }
+  // percentages are of the *finished* surface, so a shaped board's legend
+  // reflects what you'll actually see, not the blank
+  const { bySpecies: areas, total: totalArea } = speciesAreas(result);
   for (const [id, letter] of letters) {
     const v = ctx.visual(id);
     const share = totalArea ? ((areas.get(id) ?? 0) / totalArea) * 100 : 0;
@@ -193,8 +219,11 @@ function page1(ctx: Ctx): string {
     content += `<text x="${MARGIN}" y="${ly}" ${FONT} font-size="12.5" font-weight="bold" fill="#8a5a00">⚠ ${errors.length ? `${errors.length} error(s), ` : ''}${warnings.length} advisory warning(s)</text>`;
     ly += 6;
     for (const l of [...errors, ...warnings].slice(0, 5)) {
-      ly += 15;
-      content += `<text x="${MARGIN}" y="${ly}" ${FONT} font-size="10" fill="${FAINT}">• ${escapeXml(l.message.slice(0, 110))}</text>`;
+      // wrap on word boundaries rather than truncating mid-word
+      for (const [i, line] of wrapText(l.message, 108, 2).entries()) {
+        ly += 15;
+        content += `<text x="${MARGIN + (i > 0 ? 8 : 0)}" y="${ly}" ${FONT} font-size="10" fill="${FAINT}">${i === 0 ? '• ' : ''}${escapeXml(line)}</text>`;
+      }
     }
   }
 
@@ -444,6 +473,84 @@ function page4(ctx: Ctx): string {
   return content;
 }
 
+/* ---------------- page 5: outline / shaping ---------------- */
+
+function pageOutline(ctx: Ctx): string {
+  const { result, page } = ctx;
+  const fmt = f(ctx);
+  const o = result.outline;
+  const contentTop = MARGIN + 70;
+  const availW = page.w - 2 * MARGIN - 60;
+  const availH = page.h * 0.45;
+
+  const wIn = result.grid.boardLength / IN;
+  const hIn = result.grid.boardWidth / IN;
+  let scaleN = 1;
+  for (const n of [1, 1.5, 2, 3, 4, 6, 8, 12, 16]) {
+    scaleN = n;
+    if ((wIn * 96) / n <= availW && (hIn * 96) / n <= availH) break;
+  }
+  const s = 96 / scaleN / IN;
+  const bw = result.grid.boardLength * s;
+  const bh = result.grid.boardWidth * s;
+  const bx = MARGIN + 30 + (availW - bw) / 2;
+  const by = contentTop + 30;
+
+  let content = `<text x="${MARGIN}" y="${contentTop}" ${FONT} font-size="12.5" font-weight="bold" fill="${INK}">Shaping — cut this profile from the glued blank</text>`;
+  content += `<g transform="translate(${bx.toFixed(1)},${by.toFixed(1)})">`;
+  // the blank, dashed, with the finished shape solid inside it
+  content += `<rect x="0" y="0" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" fill="#f7f4ee" stroke="${FAINT}" stroke-width="0.9" stroke-dasharray="6,4"/>`;
+  content += `<path d="${outlineToPath(o, s)}" fill="none" stroke="${INK}" stroke-width="1.6"/>`;
+  // centerlines to lay the shape out from
+  content += `<line x1="${(bw / 2).toFixed(1)}" y1="-8" x2="${(bw / 2).toFixed(1)}" y2="${(bh + 8).toFixed(1)}" stroke="#c22" stroke-width="0.6" stroke-dasharray="9,3,2,3"/>`;
+  content += `<line x1="-8" y1="${(bh / 2).toFixed(1)}" x2="${(bw + 8).toFixed(1)}" y2="${(bh / 2).toFixed(1)}" stroke="#c22" stroke-width="0.6" stroke-dasharray="9,3,2,3"/>`;
+  content += `</g>`;
+  content += dimH(bx, bx + bw, by - 14, fmt(result.grid.boardLength));
+  content += dimV(bx + bw + 14, by, by + bh, fmt(result.grid.boardWidth));
+
+  // shape-specific dimensions
+  const rows: string[][] = [['Blank (glue up this rectangle)', `${fmt(result.grid.boardLength)} × ${fmt(result.grid.boardWidth)}`]];
+  switch (o.kind) {
+    case 'rect':
+      rows.push(['Shape', 'Rounded rectangle']);
+      rows.push(['Corner radius', fmt(o.cornerRadius)]);
+      rows.push(['Corner centers', `${fmt(o.cornerRadius)} in from each edge`]);
+      break;
+    case 'ellipse':
+      rows.push(['Shape', 'Ellipse']);
+      rows.push(['Semi-axes', `${fmt(o.rx)} × ${fmt(o.ry)}`]);
+      rows.push(['Center', `${fmt(o.rx)}, ${fmt(o.ry)} from the blank corner`]);
+      break;
+    case 'paddle':
+      rows.push(['Shape', 'Paddle / handled board']);
+      rows.push(['Body', `${fmt(o.bodyW)} × ${fmt(o.bodyH)}`]);
+      rows.push(['Handle', `${fmt(o.handleL)} long × ${fmt(o.handleW)} wide`]);
+      rows.push(['Handle centerline', `${fmt(Math.round(o.bodyH / 2))} from either long edge`]);
+      rows.push(['Body corner radius', fmt(o.r)]);
+      break;
+    case 'polygon':
+      rows.push(['Shape', `Custom polygon, ${o.points.length} points`]);
+      break;
+  }
+  const finishedArea = ringArea(outlineToRing(o)) / (IN * IN);
+  const blankArea = (result.grid.boardLength / IN) * (result.grid.boardWidth / IN);
+  rows.push(['Finished surface', `${finishedArea.toFixed(1)} in² (${((finishedArea / blankArea) * 100).toFixed(0)}% of the blank)`]);
+
+  const t = table(
+    MARGIN,
+    by + bh + 54,
+    [{ header: 'Dimension', width: 250 }, { header: 'Value', width: 320 }],
+    rows,
+    'Layout',
+  );
+  content += t.svg;
+
+  const noteY = by + bh + 54 + t.height + 24;
+  content += `<text x="${MARGIN}" y="${noteY}" ${FONT} font-size="10.5" fill="${FAINT}">Glue up the full rectangle first — the pattern math assumes it. Lay out the profile from the centerlines,</text>`;
+  content += `<text x="${MARGIN}" y="${noteY + 15}" ${FONT} font-size="10.5" fill="${FAINT}">cut just outside the line at the bandsaw, then flush-trim to a template or sand to the line.</text>`;
+  return content;
+}
+
 /* ---------------- assembly ---------------- */
 
 export function renderBlueprint(
@@ -462,6 +569,7 @@ export function renderBlueprint(
     { title: 'Glue-up #1 — rip & glue', content: page2(ctx) },
   ];
   if (result.crosscut) pages.push({ title: 'Crosscut & arrangement', content: page3(ctx) });
+  if (!isPlainRect(result.outline)) pages.push({ title: 'Shaping the outline', content: pageOutline(ctx) });
   pages.push({ title: 'Cut list & materials', content: page4(ctx) });
   return pages.map((p, i) => pageSvg(ctx, p.title, i + 1, pages.length, p.content));
 }
