@@ -89,6 +89,16 @@ earned its keep:
   user to cut 15 squares when 11 of them needed a diagonal cut. Caught by reading
   a rendered cut list, not by a test; now grouped by shape, with a regression test.
 
+## Packaging gotchas (fixed)
+
+- `npm run serve` used to be `npx serve dist`. Because `dist/` is gitignored, a
+  fresh clone had nothing to serve and every request 404'd. `serve` and
+  `preview` now build first.
+- `vite.config.ts` imported `vite-plugin-singlefile` at the top level, so any
+  checkout whose `node_modules` predated that dependency failed with
+  "failed to load config" on a plain `npm run dev`. It is now imported lazily,
+  and only when `SINGLE_FILE=1` actually asks for it.
+
 ## Not built
 
 - **Drag-to-reorder** in the layer stack (buttons work; the plan asks for drag).
