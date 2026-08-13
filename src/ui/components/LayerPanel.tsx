@@ -1,10 +1,12 @@
 import { inch, type Nm } from '../../engine/units';
 import type { BoardSpec, LayerGroup, SliceTransform } from '../../engine/construction/types';
 import type { OutlineSpec } from '../../engine/geometry/outline';
+import { emptyGrid, makePatch } from '../../engine/patterns/patches';
 import { useStore } from '../../store/store';
 import { useSpeciesVisual } from '../hooks';
 import { DimInput } from './DimInput';
 import { BlockControls } from './BlockControls';
+import { CurveControls } from './CurveControls';
 import { OutlineControls } from './OutlineControls';
 
 type EndConstruction = Extract<BoardSpec['construction'], { kind: 'endGrain' }>;
@@ -21,17 +23,44 @@ export function LayerPanel() {
   const c = board.construction;
   const isEnd = c.kind === 'endGrain';
   const isBlocks = c.kind === 'blocks';
+  const isPatch = c.kind === 'patch';
   const angled = isEnd && (c as EndConstruction).crosscut.angleDeg !== 90;
   const diagonal = c.kind === 'edgeGrain' && ((c as EdgeConstruction).diagonalAngleDeg ?? 0) !== 0;
   // block fields and angled/diagonal patterns take an explicit finished width;
   // straight strip stacks derive it from the stack
-  const explicitWidth = angled || diagonal || isBlocks;
+  const explicitWidth = angled || diagonal || isBlocks || c.kind === 'curve';
 
-  const setKind = (kind: 'edgeGrain' | 'endGrain' | 'blocks') => {
+  const setKind = (kind: 'edgeGrain' | 'endGrain' | 'blocks' | 'curve' | 'patch') => {
     updateBoard((d) => {
       if (kind === d.construction.kind) return;
       if (kind === 'edgeGrain') {
         d.construction = { kind: 'edgeGrain', layers: d.construction.layers };
+      } else if (kind === 'curve') {
+        const strips = d.construction.layers[0]?.strips ?? [];
+        d.construction = {
+          kind: 'curve',
+          layers: d.construction.layers,
+          pattern: {
+            kind: 'parabolic',
+            columns: 16,
+            speciesLow: strips[0]?.species ?? 'black-walnut',
+            speciesHigh: strips[1]?.species ?? 'hard-maple',
+            accentWidth: 0,
+            rise: 0.62,
+            shape: 'arch',
+            inverted: false,
+          },
+        };
+        if (d.targetWidth <= 0) d.targetWidth = inch(12);
+      } else if (kind === 'patch') {
+        const strips = d.construction.layers[0]?.strips ?? [];
+        const cell = inch(2.25);
+        const grid = emptyGrid(6, 6, cell);
+        const a = strips[0]?.species ?? 'hard-maple';
+        for (let i = 0; i < grid.patches.length; i++) grid.patches[i] = makePatch('full', [a]);
+        d.construction = { kind: 'patch', layers: d.construction.layers, grid };
+        d.targetLength = grid.cols * cell;
+        d.targetWidth = grid.rows * cell;
       } else if (kind === 'blocks') {
         const strips = d.construction.layers[0]?.strips ?? [];
         d.construction = {
@@ -73,8 +102,18 @@ export function LayerPanel() {
         <button className={c.kind === 'endGrain' ? 'seg-on' : ''} onClick={() => setKind('endGrain')}>End grain</button>
         <button className={c.kind === 'blocks' ? 'seg-on' : ''} onClick={() => setKind('blocks')}>Blocks</button>
       </div>
+      <div className="row seg">
+        <button className={c.kind === 'curve' ? 'seg-on' : ''} onClick={() => setKind('curve')}>Curves</button>
+        <button className={c.kind === 'patch' ? 'seg-on' : ''} onClick={() => setKind('patch')}>Patch studio</button>
+      </div>
 
       {c.kind === 'blocks' && <BlockControls />}
+      {c.kind === 'curve' && <CurveControls />}
+      {c.kind === 'patch' && (
+        <p className="hint">
+          Design on the grid in the centre panel. Board size follows the lattice, so the cut list stays exact.
+        </p>
+      )}
 
       {c.kind === 'edgeGrain' && (
         <label className="row">
@@ -178,21 +217,33 @@ export function LayerPanel() {
       )}
 
       <h3>Board</h3>
-      <label className="row">
-        <span>Length</span>
-        <DimInput value={board.targetLength} onCommit={(nm) => updateBoard((d) => void (d.targetLength = nm))} />
-      </label>
-      {explicitWidth && (
-        <label className="row">
-          <span>Width</span>
-          <DimInput value={board.targetWidth} onCommit={(nm) => updateBoard((d) => void (d.targetWidth = nm))} />
-        </label>
-      )}
-      {!explicitWidth && (
+      {isPatch ? (
+        // The lattice *is* the board — editing length/width here would just be
+        // overwritten, so say where the size actually comes from.
         <div className="row hint-row">
-          <span>Width</span>
-          <span className="hint">derived from the strip stack</span>
+          <span>Size</span>
+          <span className="hint">
+            follows the lattice — set columns, rows, and cell size in the studio
+          </span>
         </div>
+      ) : (
+        <>
+          <label className="row">
+            <span>Length</span>
+            <DimInput value={board.targetLength} onCommit={(nm) => updateBoard((d) => void (d.targetLength = nm))} />
+          </label>
+          {explicitWidth ? (
+            <label className="row">
+              <span>Width</span>
+              <DimInput value={board.targetWidth} onCommit={(nm) => updateBoard((d) => void (d.targetWidth = nm))} />
+            </label>
+          ) : (
+            <div className="row hint-row">
+              <span>Width</span>
+              <span className="hint">derived from the strip stack</span>
+            </div>
+          )}
+        </>
       )}
       <label className="row">
         <span>Stock thickness</span>

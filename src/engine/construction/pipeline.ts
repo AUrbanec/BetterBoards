@@ -14,6 +14,8 @@ import { assertInt, type Nm } from '../units';
 import { isPlainRect, outlineToRing, resolveOutline, type Outline } from '../geometry/outline';
 import { area as polygonArea, clipByConvex, intersectionArea, type Ring } from '../geometry/polygon';
 import { buildBlockField, type PieceSpec } from '../patterns/blocks';
+import { parabolicField } from '../patterns/curves';
+import { buildPatchField } from '../patterns/patches';
 import {
   expandLayers,
   type BoardSpec,
@@ -156,15 +158,129 @@ export function runPipeline(board: BoardSpec): PipelineResult {
     return emptyResult(issues);
   }
 
-  const partial =
-    board.construction.kind === 'blocks'
-      ? blockPipeline(board, issues)
-      : board.construction.kind === 'edgeGrain'
-        ? edgeGrainPipeline(board, strips, slabWidth, issues)
-        : endGrainPipeline(board, strips, slabWidth, slabThicknessAfterPlaning, issues);
+  let partial: PartialResult;
+  switch (board.construction.kind) {
+    case 'blocks':
+      partial = blockPipeline(board, issues);
+      break;
+    case 'curve':
+      partial = curvePipeline(board, issues);
+      break;
+    case 'patch':
+      partial = patchPipeline(board, issues);
+      break;
+    case 'edgeGrain':
+      partial = edgeGrainPipeline(board, strips, slabWidth, issues);
+      break;
+    case 'endGrain':
+      partial = endGrainPipeline(board, strips, slabWidth, slabThicknessAfterPlaning, issues);
+      break;
+  }
 
   return attachOutline(board, partial);
 }
+
+/* -- Curves from straight cuts --------------------------------------- */
+
+function curvePipeline(board: BoardSpec, issues: PipelineIssue[]): PartialResult {
+  const construction = board.construction as Extract<BoardSpec['construction'], { kind: 'curve' }>;
+  const L = board.targetLength;
+  const W = board.targetWidth;
+  if (W <= 0) {
+    issues.push({ id: 'bad-width', level: 'error', message: 'Curve patterns need an explicit finished width.' });
+    return emptyResult(issues);
+  }
+  if (construction.pattern.columns < 2) {
+    issues.push({ id: 'too-few-columns', level: 'error', message: 'A curve needs at least two columns.' });
+    return emptyResult(issues);
+  }
+
+  const field = parabolicField(construction.pattern, L, W);
+  const thickness = board.stockThickness - board.cleanup.planingLoss;
+
+  const colW = L / construction.pattern.columns;
+  if (colW < board.kerf * 2) {
+    issues.push({
+      id: 'columns-too-narrow',
+      level: 'error',
+      message: 'Those columns are narrower than two kerfs — reduce the column count.',
+    });
+    return emptyResult(issues);
+  }
+  if (colW < inchNm(0.375)) {
+    issues.push({
+      id: 'columns-thin',
+      level: 'warning',
+      message: `Columns are ${(colW / 25400000).toFixed(2)}″ wide. Below about 3/8″ they are fragile to handle and the curve gains little smoothness — consider fewer columns.`,
+    });
+  }
+
+  return {
+    ok: !issues.some((i) => i.level === 'error'),
+    issues,
+    grid: { map: { kind: 'poly' }, rows: [], polys: field.polys, boardLength: L, boardWidth: W },
+    finished: { length: L, width: W, thickness },
+    glueUp1: {
+      strips: expandPieces(field.pieces, board.stockThickness),
+      slabWidth: W,
+      slabLength: L,
+      slabThickness: board.stockThickness,
+      slabThicknessAfterPlaning: thickness,
+      ripCount: Math.max(0, field.pieces.reduce((t, p) => t + p.count, 0) - 1),
+    },
+    pieces: field.pieces,
+    blockNotes: field.notes,
+    subAssemblies: field.subAssemblies,
+    subAssemblyLabel: 'column',
+  };
+}
+
+/* -- Patch designer lattice ------------------------------------------ */
+
+function patchPipeline(board: BoardSpec, issues: PipelineIssue[]): PartialResult {
+  const construction = board.construction as Extract<BoardSpec['construction'], { kind: 'patch' }>;
+  const grid = construction.grid;
+  if (grid.cols < 1 || grid.rows < 1 || grid.cell <= 0) {
+    issues.push({ id: 'bad-grid', level: 'error', message: 'The patch grid needs at least one cell.' });
+    return emptyResult(issues);
+  }
+
+  // The lattice defines the finished size — that is what makes the cut list exact.
+  const L = grid.cols * grid.cell;
+  const W = grid.rows * grid.cell;
+  const field = buildPatchField(grid, L, W);
+  const thickness = board.stockThickness - board.cleanup.planingLoss;
+
+  if (field.emptyCells > 0) {
+    issues.push({
+      id: 'empty-cells',
+      level: 'error',
+      message: `${field.emptyCells} cell${field.emptyCells === 1 ? ' is' : 's are'} still empty. A board cannot have holes — fill them (or shrink the grid) before cutting.`,
+    });
+  }
+
+  return {
+    ok: !issues.some((i) => i.level === 'error'),
+    issues,
+    grid: { map: { kind: 'poly' }, rows: [], polys: field.polys, boardLength: L, boardWidth: W },
+    finished: { length: L, width: W, thickness },
+    glueUp1: {
+      strips: expandPieces(field.pieces, board.stockThickness),
+      slabWidth: W,
+      slabLength: L,
+      slabThickness: board.stockThickness,
+      slabThicknessAfterPlaning: thickness,
+      ripCount: Math.max(0, field.pieces.reduce((t, p) => t + p.count, 0) - 1),
+    },
+    pieces: field.pieces,
+    blockNotes: field.notes,
+    subAssemblies: field.subAssemblies,
+    subAssemblyLabel: 'patch',
+    patchCell: grid.cell,
+  };
+}
+
+const inchNm = (x: number) => Math.round(x * 25_400_000);
 
 /* -- 2-D block assembly ---------------------------------------------- */
 
@@ -229,7 +345,15 @@ function expandPieces(pieces: PieceSpec[], thickness: Nm): StripCut[] {
   const out: StripCut[] = [];
   for (const p of pieces) {
     for (let i = 0; i < p.count; i++) {
-      out.push({ species: p.species, width: p.w, thickness, length: p.h });
+      out.push({
+        species: p.species,
+        width: p.w,
+        thickness,
+        length: p.h,
+        pieceId: p.pieceId,
+        angleDeg: p.angleDeg,
+        width2: p.tapered ? p.w2 : undefined,
+      });
     }
   }
   return out;

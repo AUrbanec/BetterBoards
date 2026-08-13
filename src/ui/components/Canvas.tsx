@@ -2,15 +2,18 @@ import { useMemo } from 'react';
 import { IN, formatCutDim } from '../../engine/units';
 import { resolveTransform } from '../../engine/construction/pipeline';
 import type { BoardSpec, PerSliceOp, PipelineResult } from '../../engine/construction/types';
+import type { CutList } from '../../engine/cutlist/cutlist';
 import { renderBoardSvg } from '../../exports/boardSvg';
 import { CncView } from './CncView';
 import { Preview3D } from './Preview3D';
+import { PatchStudio } from './PatchStudio';
+import { StagesBar } from './StagesBar';
 import { useStore } from '../../store/store';
 import { useContainerWidth, useSpeciesVisual } from '../hooks';
 
 type EndConstruction = Extract<BoardSpec['construction'], { kind: 'endGrain' }>;
 
-export function Canvas({ result }: { result: PipelineResult }) {
+export function Canvas({ result, cutlist, info }: { result: PipelineResult; cutlist: CutList; info: (id: string) => { name: string; pricePerBF?: number } | undefined }) {
   const view = useStore((s) => s.view);
   const setView = useStore((s) => s.setView);
   const showLabels = useStore((s) => s.showLabels);
@@ -18,6 +21,7 @@ export function Canvas({ result }: { result: PipelineResult }) {
   const units = useStore((s) => s.units);
   const board = useStore((s) => s.board);
   const isEnd = board.construction.kind === 'endGrain';
+  const isPatch = board.construction.kind === 'patch';
 
   return (
     <div className="canvas-wrap">
@@ -25,6 +29,7 @@ export function Canvas({ result }: { result: PipelineResult }) {
         <div className="seg">
           <button className={view === 'top' ? 'seg-on' : ''} onClick={() => setView('top')}>Top</button>
           <button className={view === 'end' ? 'seg-on' : ''} onClick={() => setView('end')}>Glue-up #1</button>
+          {isPatch && <button className={view === 'studio' ? 'seg-on' : ''} onClick={() => setView('studio')}>Studio</button>}
           {isEnd && <button className={view === 'slab' ? 'seg-on' : ''} onClick={() => setView('slab')}>Crosscut</button>}
           <button className={view === '3d' ? 'seg-on' : ''} onClick={() => setView('3d')}>3D</button>
           <button className={view === 'cnc' ? 'seg-on' : ''} onClick={() => setView('cnc')}>CNC</button>
@@ -33,11 +38,13 @@ export function Canvas({ result }: { result: PipelineResult }) {
           <input type="checkbox" checked={showLabels} onChange={toggleLabels} /> species letters
         </label>
       </div>
+      {view === 'studio' && isPatch && <PatchStudio result={result} />}
       {view === 'top' && <TopView result={result} showLabels={showLabels} />}
       {view === 'end' && <EndView result={result} />}
       {view === 'slab' && isEnd && <SlabView result={result} />}
       {view === '3d' && result.ok && <Preview3D result={result} />}
       {view === 'cnc' && result.ok && <CncView result={result} />}
+      <StagesBar result={result} cutlist={cutlist} info={info} />
       <div className="canvas-dims">
         {result.ok
           ? `${formatCutDim(result.finished.length, units)} × ${formatCutDim(result.finished.width, units)} × ${formatCutDim(result.finished.thickness, units)}`

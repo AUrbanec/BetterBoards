@@ -33,15 +33,19 @@ describe('instructions generator', () => {
     expect(ins.steps.map((s) => s.title)).toEqual([
       'Gather and mill stock',
       'Rip the strips',
-      'Glue-up #1 — the slab',
+      'Glue-up 1 — the slab',
       'Flatten the slab',
       'Crosscut into slices',
       'Arrange the slices',
-      'Glue-up #2 — the board',
+      'Glue-up 2 — the board',
       'Flatten the board',
       'Trim to final size',
       'Ease, sand, finish',
     ]);
+    // the glue-up count is derived, numbered, and stated up front
+    expect(ins.glueUps).toBe(2);
+    expect(ins.steps.filter((s) => s.glueUp !== undefined).map((s) => s.glueUp)).toEqual([1, 2]);
+    expect(ins.intro).toContain('2 glue-ups');
     expect(md).toContain('Rotate slices 2, 4, 6, 8, 10, 12 end-for-end');
     expect(md).toContain('NEVER feed an end-grain board through a thickness planer');
     expect(md).toContain('12 slices, each 1 3/8"');
@@ -67,7 +71,7 @@ describe('csv export', () => {
     const result = runPipeline(board);
     const cl = buildCutList(board, result, info);
     const csv = cutListToCsv(board, result, cl, info);
-    expect(csv).toContain('RIP SCHEDULE');
+    expect(csv).toContain('RIP / PIECE SCHEDULE');
     expect(csv).toContain('MATERIALS BY SPECIES');
     expect(csv).toContain('CROSSCUT SCHEDULE');
     expect(csv).toContain('ALLOWANCES');

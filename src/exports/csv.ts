@@ -35,11 +35,13 @@ export function cutListToCsv(
   push('Finished size', `${decIn(result.finished.length)} x ${decIn(result.finished.width)} x ${decIn(result.finished.thickness)} in`);
   push('');
 
-  push('RIP SCHEDULE');
-  push('Species', 'Qty', 'Width (frac)', 'Width (in)', 'Thickness (frac)', 'Thickness (in)', 'Length (frac)', 'Length (in)');
+  push('RIP / PIECE SCHEDULE');
+  push('Species', 'Shape', 'Angle (deg)', 'Qty', 'Width (frac)', 'Width (in)', 'Thickness (frac)', 'Thickness (in)', 'Length (frac)', 'Length (in)');
   for (const g of cl.ripSchedule) {
     push(
       info(g.species)?.name ?? g.species,
+      g.pieceId ?? 'strip',
+      g.angleDeg ?? '',
       g.count,
       fracCell(g.width),
       decIn(g.width),

@@ -66,7 +66,7 @@ export function App() {
 
       <main className="workspace">
         <aside className="left"><LayerPanel /></aside>
-        <section className="center"><Canvas result={result} /></section>
+        <section className="center"><Canvas result={result} cutlist={cutlist} info={info} /></section>
         <aside className="right">
           <div className="row seg right-tabs">
             <button className={tab === 'species' ? 'seg-on' : ''} onClick={() => setTab('species')}>Species</button>

@@ -177,9 +177,14 @@ describe('block pipeline', () => {
     const md = instructionsToMarkdown(generateInstructions(b, r, cl, info));
     expect(md).toContain('Cut the pieces');
     expect(md).toContain('Dry-fit the field');
-    expect(md).toContain('Glue up in sections');
+    expect(md).toContain('Glue-up 1 — rows');
+    expect(md).toContain('Glue-up 2 — join into the panel');
     expect(md).not.toContain('Crosscut into slices');
     expect(md).toMatch(/60°/);
+    // a flat-panel field is two glue-ups, and the plan says so
+    const ins = generateInstructions(b, r, cl, info);
+    expect(ins.glueUps).toBe(2);
+    expect(ins.intro).toContain('2 glue-ups');
   });
 
   it('renders every block pattern to clean SVG', () => {

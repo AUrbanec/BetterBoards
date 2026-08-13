@@ -2,6 +2,8 @@ import type { Nm } from '../units';
 import type { Outline, OutlineSpec } from '../geometry/outline';
 import type { CncOptions } from '../cnc/types';
 import type { BlockPattern, PieceSpec } from '../patterns/blocks';
+import type { CurvePattern } from '../patterns/curves';
+import type { PatchGrid } from '../patterns/patches';
 
 export type SpeciesId = string;
 
@@ -51,6 +53,18 @@ export type Construction =
       kind: 'blocks';
       pattern: BlockPattern;
       /** Kept so switching back to a strip construction preserves the stack. */
+      layers: LayerGroup[];
+    }
+  | {
+      /** Curves approximated by one straight crosscut per column. */
+      kind: 'curve';
+      pattern: CurvePattern;
+      layers: LayerGroup[];
+    }
+  | {
+      /** Interactive patch designer: a lattice of preset shapes. */
+      kind: 'patch';
+      grid: PatchGrid;
       layers: LayerGroup[];
     }
   | {
@@ -168,6 +182,17 @@ export interface StripCut {
   width: Nm;      // finished rip width
   thickness: Nm;  // milled stock thickness
   length: Nm;     // required length incl. trim allowance
+  /**
+   * Shape of the piece for piece-based constructions ("square",
+   * "half-square triangle", …). Two pieces can share a species and a size and
+   * still need completely different cuts, so this is part of the cut-list
+   * identity, not decoration.
+   */
+  pieceId?: string;
+  /** Cut angle where the piece is not a plain rectangle. */
+  angleDeg?: number;
+  /** Width at the narrow end of a tapered piece. */
+  width2?: Nm;
 }
 
 export interface GlueUp1 {
@@ -221,6 +246,12 @@ export interface PipelineResult {
   pieces?: PieceSpec[];
   /** Shop notes specific to the block pattern. */
   blockNotes?: string[];
+  /** Patches/columns that are themselves glued from 2+ pieces and cure first. */
+  subAssemblies?: number;
+  /** What those sub-assemblies are called, for the build plan. */
+  subAssemblyLabel?: string;
+  /** Finished patch cell size, for the sub-assembly trim instruction. */
+  patchCell?: Nm;
 }
 
 /** Expand layer groups into the flat ordered strip list. */

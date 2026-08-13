@@ -12,6 +12,10 @@ export interface RipGroup {
   width: Nm;
   thickness: Nm;
   length: Nm;
+  /** Piece shape, when the construction cuts pieces rather than strips. */
+  pieceId?: string;
+  angleDeg?: number;
+  width2?: Nm;
 }
 
 export interface SpeciesSummary {
@@ -86,12 +90,24 @@ export function buildCutList(
   const g1 = result.glueUp1;
 
   // ---- group strips by (species, width) -----------------------------
+  // Group by shape as well as size: a square and a half-square triangle can be
+  // the same species and the same dimensions and still need different cuts.
   const groupMap = new Map<string, RipGroup>();
   for (const s of g1.strips) {
-    const key = `${s.species}|${s.width}`;
+    const key = `${s.species}|${s.width}|${s.length}|${s.pieceId ?? ''}|${s.angleDeg ?? ''}|${s.width2 ?? ''}`;
     const g = groupMap.get(key);
     if (g) g.count++;
-    else groupMap.set(key, { species: s.species, count: 1, width: s.width, thickness: s.thickness, length: s.length });
+    else
+      groupMap.set(key, {
+        species: s.species,
+        count: 1,
+        width: s.width,
+        thickness: s.thickness,
+        length: s.length,
+        pieceId: s.pieceId,
+        angleDeg: s.angleDeg,
+        width2: s.width2,
+      });
   }
   const ripSchedule = [...groupMap.values()].sort(
     (a, b) => a.species.localeCompare(b.species) || b.width - a.width,
