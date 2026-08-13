@@ -19,11 +19,13 @@ npm run dev        # http://localhost:5173
 To use it as a local app:
 
 ```bash
-npm run build
-npm run serve         # serves dist/ via npx serve
-
+npm run serve         # builds, then serves dist/ on localhost:3000
+npm run serve:single  # builds the single-file bundle and serves it
 npm run build:single  # dist-single/index.html — one file, opens with no server at all
 ```
+
+`npm run serve` and `npm run preview` build first, so they work from a clean
+checkout (`dist/` is gitignored and will not exist until something builds it).
 
 `dist/` is a plain static bundle — any file server works, and it runs fully offline. The
 single-file build inlines everything into one ~330 KB HTML file you can open straight from disk.

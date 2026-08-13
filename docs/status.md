@@ -71,6 +71,16 @@ earned its keep:
 - The canvas guarded on `rows.length === 0`, which is always true for polygon
   grids, so block patterns rendered blank.
 
+## Packaging gotchas (fixed)
+
+- `npm run serve` used to be `npx serve dist`. Because `dist/` is gitignored, a
+  fresh clone had nothing to serve and every request 404'd. `serve` and
+  `preview` now build first.
+- `vite.config.ts` imported `vite-plugin-singlefile` at the top level, so any
+  checkout whose `node_modules` predated that dependency failed with
+  "failed to load config" on a plain `npm run dev`. It is now imported lazily,
+  and only when `SINGLE_FILE=1` actually asks for it.
+
 ## Not built
 
 - **Drag-to-reorder** in the layer stack (buttons work; the plan asks for drag).
