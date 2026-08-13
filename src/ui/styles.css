@@ -248,3 +248,23 @@ details.advanced summary { cursor: pointer; color: var(--faint); font-size: 11.5
 @media (max-width: 1180px) {
   .workspace { grid-template-columns: 260px 1fr 300px; }
 }
+
+/* ---------- CNC ---------- */
+
+.cnc-panel .row > span:first-child { flex: 0 0 88px; }
+.cnc-panel h3 { margin-top: 18px; }
+.cnc-panel h3 .chk { color: var(--faint); font-size: 12px; text-transform: uppercase; letter-spacing: .05em; }
+.indent-p { padding-left: 12px; margin: 2px 0 6px; }
+button.tiny { padding: 1px 6px; font-size: 10.5px; }
+.checklist { margin: 4px 0; padding-left: 18px; color: var(--faint); font-size: 11.5px; line-height: 1.5; }
+
+.cnc-svg { max-width: 100%; height: auto; background: #fbf9f5; border-radius: 6px; }
+.cnc-legend { display: flex; flex-direction: column; gap: 3px; font-size: 11.5px; color: var(--faint); max-width: 640px; }
+.cnc-legend-item { display: inline-flex; align-items: center; gap: 6px; }
+.cnc-legend-item i { width: 14px; height: 3px; border-radius: 2px; flex: 0 0 auto; }
+.cnc-warnings, .cnc-errors {
+  max-width: 640px; font-size: 11.5px; line-height: 1.45;
+  border-radius: 6px; padding: 7px 10px;
+}
+.cnc-warnings { background: #fdf6e6; color: var(--warn); border: 1px solid #ecd9a8; }
+.cnc-errors { background: #fdeeed; color: var(--err); border: 1px solid #f0c8c4; }

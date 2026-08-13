@@ -3,6 +3,7 @@ import { IN, formatCutDim } from '../../engine/units';
 import { resolveTransform } from '../../engine/construction/pipeline';
 import type { BoardSpec, PerSliceOp, PipelineResult } from '../../engine/construction/types';
 import { renderBoardSvg } from '../../exports/boardSvg';
+import { CncView } from './CncView';
 import { useStore } from '../../store/store';
 import { useContainerWidth, useSpeciesVisual } from '../hooks';
 
@@ -24,6 +25,7 @@ export function Canvas({ result }: { result: PipelineResult }) {
           <button className={view === 'top' ? 'seg-on' : ''} onClick={() => setView('top')}>Top</button>
           <button className={view === 'end' ? 'seg-on' : ''} onClick={() => setView('end')}>Glue-up #1</button>
           {isEnd && <button className={view === 'slab' ? 'seg-on' : ''} onClick={() => setView('slab')}>Crosscut</button>}
+          <button className={view === 'cnc' ? 'seg-on' : ''} onClick={() => setView('cnc')}>CNC</button>
         </div>
         <label className="chk">
           <input type="checkbox" checked={showLabels} onChange={toggleLabels} /> species letters
@@ -32,6 +34,7 @@ export function Canvas({ result }: { result: PipelineResult }) {
       {view === 'top' && <TopView result={result} showLabels={showLabels} />}
       {view === 'end' && <EndView result={result} />}
       {view === 'slab' && isEnd && <SlabView result={result} />}
+      {view === 'cnc' && result.ok && <CncView result={result} />}
       <div className="canvas-dims">
         {result.ok
           ? `${formatCutDim(result.finished.length, units)} × ${formatCutDim(result.finished.width, units)} × ${formatCutDim(result.finished.thickness, units)}`

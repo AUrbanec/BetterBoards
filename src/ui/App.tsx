@@ -3,6 +3,7 @@ import type { UnitMode } from '../engine/units';
 import { useStore } from '../store/store';
 import { useDerived } from './hooks';
 import { Canvas } from './components/Canvas';
+import { CncPanel } from './components/CncPanel';
 import { CutListView } from './components/CutListView';
 import { ExportDrawer } from './components/ExportDrawer';
 import { Gallery } from './components/Gallery';
@@ -11,7 +12,7 @@ import { LayerPanel } from './components/LayerPanel';
 import { SpeciesPanel } from './components/SpeciesPanel';
 import { TotalsBar } from './components/TotalsBar';
 
-type RightTab = 'species' | 'cutlist' | 'steps';
+type RightTab = 'species' | 'cutlist' | 'steps' | 'cnc';
 
 export function App() {
   const { result, cutlist, lints, info } = useDerived();
@@ -71,11 +72,13 @@ export function App() {
             <button className={tab === 'species' ? 'seg-on' : ''} onClick={() => setTab('species')}>Species</button>
             <button className={tab === 'cutlist' ? 'seg-on' : ''} onClick={() => setTab('cutlist')}>Cut list</button>
             <button className={tab === 'steps' ? 'seg-on' : ''} onClick={() => setTab('steps')}>Steps</button>
+            <button className={tab === 'cnc' ? 'seg-on' : ''} onClick={() => setTab('cnc')}>CNC</button>
           </div>
           <div className="right-body">
             {tab === 'species' && <SpeciesPanel />}
             {tab === 'cutlist' && <CutListView result={result} cutlist={cutlist} />}
             {tab === 'steps' && <InstructionsView result={result} cutlist={cutlist} info={info} />}
+            {tab === 'cnc' && <CncPanel result={result} />}
           </div>
         </aside>
       </main>

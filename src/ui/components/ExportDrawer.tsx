@@ -6,6 +6,10 @@ import { renderBlueprint, type PageSize } from '../../exports/blueprint';
 import { renderBoardSvg } from '../../exports/boardSvg';
 import { cutListToCsv } from '../../exports/csv';
 import { generateInstructions, instructionsToMarkdown } from '../../exports/instructions';
+import { generateToolpaths } from '../../engine/cnc/toolpath';
+import { emitAllGcode } from '../../engine/cnc/gcode';
+import { toolpathsToDxf, toolpathsToSvg } from '../../engine/cnc/dxf';
+import { defaultCncOptions } from '../../engine/cnc/types';
 import { useStore } from '../../store/store';
 import { download, printPages, useSpeciesVisual } from '../hooks';
 
@@ -30,6 +34,9 @@ export function ExportDrawer({ result, cutlist, lints, info }: Props) {
 
   const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'board';
   const blocked = !result.ok;
+  const cncOptions = board.cnc ?? defaultCncOptions(result.finished.thickness);
+  const cncOps = generateToolpaths(result.outline, cncOptions);
+  const cncBlocked = blocked || cncOps.errors.length > 0;
 
   const blueprint = () => renderBlueprint(board, result, cutlist, lints, visual, info, units, pageSize);
 
@@ -112,6 +119,56 @@ export function ExportDrawer({ result, cutlist, lints, info }: Props) {
             <small>Save the design to a file you own.</small>
           </button>
         </div>
+
+        <h3>CNC</h3>
+        {cncOps.operations.length === 0 ? (
+          <p className="hint">No CNC operations are enabled — turn them on in the CNC panel to export toolpaths.</p>
+        ) : (
+          <>
+            {cncBlocked && (
+              <p className="lint-err">
+                ✖ CNC export is blocked until these are fixed:
+                {cncOps.errors.map((e, i) => (
+                  <span key={i}> {e}</span>
+                ))}
+              </p>
+            )}
+            <div className="export-grid">
+              <button
+                disabled={cncBlocked}
+                onClick={() => {
+                  const { files, violations } = emitAllGcode(cncOps.operations, cncOptions);
+                  if (violations.length) {
+                    alert(`Refusing to export — the emitter found safety violations:\n\n${violations.join('\n')}`);
+                    return;
+                  }
+                  for (const f of files) download(`${slug}-${f.name}`, 'text/plain', f.text);
+                }}
+              >
+                <b>G-code → .nc</b>
+                <small>One file per operation plus a combined file with tool-change stops. Preview first.</small>
+              </button>
+              <button
+                disabled={cncBlocked}
+                onClick={() => download(`${slug}-toolpaths.dxf`, 'application/dxf', toolpathsToDxf(result.outline, cncOps.operations))}
+              >
+                <b>Toolpaths → DXF</b>
+                <small>R12, one layer per operation, for your own CAM.</small>
+              </button>
+              <button
+                disabled={cncBlocked}
+                onClick={() => download(`${slug}-toolpaths.svg`, 'image/svg+xml', toolpathsToSvg(result.outline, cncOps.operations))}
+              >
+                <b>Toolpaths → SVG</b>
+                <small>Flat vector paths for VCarve/Carbide Create.</small>
+              </button>
+            </div>
+            <p className="hint">
+              Feeds and speeds are starting points, not recommendations. Air-cut every new program with Z raised before
+              you put wood on the table.
+            </p>
+          </>
+        )}
 
         <p className="hint">
           Everything is generated in your browser — nothing is uploaded anywhere. The blueprint's printed scale is only

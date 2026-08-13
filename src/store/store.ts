@@ -10,7 +10,7 @@ import type { BoardSpec } from '../engine/construction/types';
 import { TEMPLATES, TEMPLATE_BY_ID } from '../engine/patterns/templates';
 import { parseProject, serializeProject, type InventoryItem } from '../exports/project';
 
-export type ViewTab = 'top' | 'end' | 'slab';
+export type ViewTab = 'top' | 'end' | 'slab' | 'cnc';
 export type SpeciesTab = 'browse' | 'match' | 'inventory';
 
 export interface ProjectMeta {
