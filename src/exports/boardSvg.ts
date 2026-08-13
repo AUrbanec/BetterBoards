@@ -39,6 +39,8 @@ type Pt = [number, number];
 export function cellQuad(grid: CellGrid, row: GridRow, cellIndex: number): Pt[] {
   const c = row.cells[cellIndex];
   switch (grid.map.kind) {
+    case 'poly':
+      return []; // block fields render from grid.polys instead
     case 'rows-y': {
       // u→x, v→y
       return [
@@ -109,7 +111,12 @@ export function renderBoardGroup(
   // species defs: grain stripe patterns along the grain direction
   const speciesIds = new Set<string>();
   for (const row of grid.rows) for (const c of row.cells) speciesIds.add(c.species);
-  const grainAngle = grid.map.kind === 'rows-y' ? 0 : grid.map.kind === 'rows-x' ? 90 : grid.map.angleDeg;
+  for (const p of grid.polys ?? []) speciesIds.add(p.species);
+  const grainAngle =
+    grid.map.kind === 'rows-y' ? 0
+    : grid.map.kind === 'rows-x' ? 90
+    : grid.map.kind === 'diag' ? grid.map.angleDeg
+    : 0;
   const shaped = opts.outline && !isPlainRect(opts.outline);
   const clipShape = shaped
     ? `<path d="${outlineToPath(opts.outline!, s)}"/>`
@@ -160,6 +167,31 @@ export function renderBoardGroup(
       }
     });
   });
+  // 2-D block fields: explicit polygons rather than row/interval cells
+  (grid.polys ?? []).forEach((poly, pi) => {
+    const pts = poly.points.map((p) => [p.x * s, p.y * s] as Pt);
+    if (pts.length < 3) return;
+    const d = `M${pts.map((p) => `${p[0].toFixed(2)},${p[1].toFixed(2)}`).join('L')}Z`;
+    const v = visual(poly.species);
+    const shade = 0.92 + jitter(pi, poly.points.length) * 0.13;
+    body += `<path d="${d}" fill="${v.hex}"/>`;
+    body += `<path d="${d}" fill="url(#${pre}-grain-${poly.species})" opacity="${(0.5 * shade).toFixed(3)}"/>`;
+    if (shade < 1) body += `<path d="${d}" fill="#2b1d0e" opacity="${((1 - shade) * 0.35).toFixed(3)}"/>`;
+    if (showGlue) body += `<path d="${d}" fill="none" stroke="#3a2c1a" stroke-opacity="0.45" stroke-width="0.7"/>`;
+    if (opts.showLabels) {
+      const cx = pts.reduce((t, p) => t + p[0], 0) / pts.length;
+      const cy = pts.reduce((t, p) => t + p[1], 0) / pts.length;
+      const xs = pts.map((p) => p[0]);
+      const ys = pts.map((p) => p[1]);
+      const minSide = Math.min(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+      if (minSide > 14) {
+        labels.push(
+          `<text x="${cx.toFixed(1)}" y="${cy.toFixed(1)}" font-size="${Math.min(13, minSide * 0.5).toFixed(1)}" text-anchor="middle" dominant-baseline="central" fill="#1a120a" opacity="0.55" font-family="ui-monospace, monospace">${escapeXml(v.letter)}</text>`,
+        );
+      }
+    }
+  });
+
   body += labels.join('');
   body += `</g>`;
   // finished edge — the actual cut line

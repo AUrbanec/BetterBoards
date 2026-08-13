@@ -16,6 +16,10 @@ export interface InventoryItem {
   thickness?: number;
   pricePerBF?: number;
   notes?: string;
+  /** Usable length of one board (nm) — feeds the stock optimizer. */
+  boardLength?: number;
+  /** How many boards of that length are on hand. */
+  boardCount?: number;
 }
 
 export interface ProjectFile {

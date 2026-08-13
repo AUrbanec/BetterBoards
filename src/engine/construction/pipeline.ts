@@ -12,7 +12,8 @@
 
 import { assertInt, type Nm } from '../units';
 import { isPlainRect, outlineToRing, resolveOutline, type Outline } from '../geometry/outline';
-import { clipByConvex, intersectionArea, type Ring } from '../geometry/polygon';
+import { area as polygonArea, clipByConvex, intersectionArea, type Ring } from '../geometry/polygon';
+import { buildBlockField, type PieceSpec } from '../patterns/blocks';
 import {
   expandLayers,
   type BoardSpec,
@@ -25,6 +26,7 @@ import {
   type PipelineIssue,
   type PipelineResult,
   type SliceTransform,
+  type StripCut,
   type StripSpec,
 } from './types';
 
@@ -155,11 +157,82 @@ export function runPipeline(board: BoardSpec): PipelineResult {
   }
 
   const partial =
-    board.construction.kind === 'edgeGrain'
-      ? edgeGrainPipeline(board, strips, slabWidth, issues)
-      : endGrainPipeline(board, strips, slabWidth, slabThicknessAfterPlaning, issues);
+    board.construction.kind === 'blocks'
+      ? blockPipeline(board, issues)
+      : board.construction.kind === 'edgeGrain'
+        ? edgeGrainPipeline(board, strips, slabWidth, issues)
+        : endGrainPipeline(board, strips, slabWidth, slabThicknessAfterPlaning, issues);
 
   return attachOutline(board, partial);
+}
+
+/* -- 2-D block assembly ---------------------------------------------- */
+
+function blockPipeline(board: BoardSpec, issues: PipelineIssue[]): PartialResult {
+  const construction = board.construction as Extract<BoardSpec['construction'], { kind: 'blocks' }>;
+  const L = board.targetLength;
+  const W = board.targetWidth;
+
+  if (W <= 0) {
+    issues.push({ id: 'bad-width', level: 'error', message: 'Block patterns need an explicit finished width.' });
+    return emptyResult(issues);
+  }
+  const cell =
+    construction.pattern.kind === 'tumbling' ? construction.pattern.side : construction.pattern.unit;
+  if (cell <= 0) {
+    issues.push({ id: 'bad-unit', level: 'error', message: 'The pattern unit size must be positive.' });
+    return emptyResult(issues);
+  }
+  if (cell > Math.min(L, W)) {
+    issues.push({
+      id: 'unit-too-big',
+      level: 'error',
+      message: 'The pattern unit is larger than the board — reduce it or enlarge the board.',
+    });
+    return emptyResult(issues);
+  }
+
+  const field = buildBlockField(construction.pattern, L, W);
+  const thickness = board.stockThickness - board.cleanup.planingLoss;
+
+  const partials = field.pieces.filter((p) => p.partial).reduce((t, p) => t + p.count, 0);
+  if (partials > 0) {
+    issues.push({
+      id: 'block-partials',
+      level: 'warning',
+      message: `${partials} pieces are trimmed by the board edge. Cut them full size and trim the panel after glue-up — the cut list lists them separately.`,
+    });
+  }
+
+  const totalPieces = field.pieces.reduce((t, p) => t + p.count, 0);
+
+  return {
+    ok: !issues.some((i) => i.level === 'error'),
+    issues,
+    grid: { map: { kind: 'poly' }, rows: [], polys: field.polys, boardLength: L, boardWidth: W },
+    finished: { length: L, width: W, thickness },
+    glueUp1: {
+      strips: expandPieces(field.pieces, board.stockThickness),
+      slabWidth: W,
+      slabLength: L,
+      slabThickness: board.stockThickness,
+      slabThicknessAfterPlaning: thickness,
+      ripCount: Math.max(0, totalPieces - 1),
+    },
+    pieces: field.pieces,
+    blockNotes: field.notes,
+  };
+}
+
+/** One StripCut per physical piece, so board-feet math counts every one. */
+function expandPieces(pieces: PieceSpec[], thickness: Nm): StripCut[] {
+  const out: StripCut[] = [];
+  for (const p of pieces) {
+    for (let i = 0; i < p.count; i++) {
+      out.push({ species: p.species, width: p.w, thickness, length: p.h });
+    }
+  }
+  return out;
 }
 
 /** Everything the construction stages produce, before the shape is applied. */
@@ -223,6 +296,9 @@ export function cellQuadPoints(grid: PipelineResult['grid'], rowIndex: number, c
   const row = grid.rows[rowIndex];
   const c = row.cells[cellIndex];
   switch (grid.map.kind) {
+    // Block fields carry their own polygons; they have no rows to index.
+    case 'poly':
+      return [];
     case 'rows-y':
       return [
         { x: c.u0, y: row.v0 },
@@ -270,6 +346,13 @@ export function speciesAreas(result: PipelineResult): { bySpecies: Map<string, n
   let total = 0;
   const plain = isPlainRect(result.outline);
   const ring: Ring | null = plain ? null : outlineToRing(result.outline);
+
+  for (const poly of result.grid.polys ?? []) {
+    const a = ring ? intersectionArea(ring, poly.points) : polygonArea(poly.points);
+    if (a <= 0) continue;
+    bySpecies.set(poly.species, (bySpecies.get(poly.species) ?? 0) + a);
+    total += a;
+  }
 
   for (let ri = 0; ri < result.grid.rows.length; ri++) {
     const row = result.grid.rows[ri];

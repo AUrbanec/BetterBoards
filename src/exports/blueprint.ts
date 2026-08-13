@@ -92,6 +92,28 @@ export function dimV(x: number, y0: number, y1: number, label: string, extLeft =
 
 /* ---------------- table helper ---------------- */
 
+/** Break text into at most `maxLines` lines of ≤ `perLine` characters. */
+function wrapText(text: string, perLine: number, maxLines: number): string[] {
+  const words = text.split(/\s+/);
+  const lines: string[] = [];
+  let cur = '';
+  for (const w of words) {
+    if (cur && cur.length + 1 + w.length > perLine) {
+      lines.push(cur);
+      cur = w;
+      if (lines.length === maxLines) break;
+    } else {
+      cur = cur ? `${cur} ${w}` : w;
+    }
+  }
+  if (lines.length < maxLines && cur) lines.push(cur);
+  if (lines.length === maxLines) {
+    const consumed = lines.join(' ').length;
+    if (consumed < text.length - 1) lines[maxLines - 1] = `${lines[maxLines - 1].replace(/\s+\S*$/, '')}…`;
+  }
+  return lines;
+}
+
 /** Truncate to fit a column: the tables render in 10.5px monospace (~6.4px/char). */
 function clip(text: string, widthPx: number): string {
   const max = Math.max(3, Math.floor((widthPx - 6) / 6.4));
@@ -197,8 +219,11 @@ function page1(ctx: Ctx): string {
     content += `<text x="${MARGIN}" y="${ly}" ${FONT} font-size="12.5" font-weight="bold" fill="#8a5a00">⚠ ${errors.length ? `${errors.length} error(s), ` : ''}${warnings.length} advisory warning(s)</text>`;
     ly += 6;
     for (const l of [...errors, ...warnings].slice(0, 5)) {
-      ly += 15;
-      content += `<text x="${MARGIN}" y="${ly}" ${FONT} font-size="10" fill="${FAINT}">• ${escapeXml(l.message.slice(0, 110))}</text>`;
+      // wrap on word boundaries rather than truncating mid-word
+      for (const [i, line] of wrapText(l.message, 108, 2).entries()) {
+        ly += 15;
+        content += `<text x="${MARGIN + (i > 0 ? 8 : 0)}" y="${ly}" ${FONT} font-size="10" fill="${FAINT}">${i === 0 ? '• ' : ''}${escapeXml(line)}</text>`;
+      }
     }
   }
 

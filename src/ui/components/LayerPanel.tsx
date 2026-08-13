@@ -4,6 +4,7 @@ import type { OutlineSpec } from '../../engine/geometry/outline';
 import { useStore } from '../../store/store';
 import { useSpeciesVisual } from '../hooks';
 import { DimInput } from './DimInput';
+import { BlockControls } from './BlockControls';
 import { OutlineControls } from './OutlineControls';
 
 type EndConstruction = Extract<BoardSpec['construction'], { kind: 'endGrain' }>;
@@ -19,14 +20,32 @@ export function LayerPanel() {
 
   const c = board.construction;
   const isEnd = c.kind === 'endGrain';
+  const isBlocks = c.kind === 'blocks';
   const angled = isEnd && (c as EndConstruction).crosscut.angleDeg !== 90;
-  const diagonal = !isEnd && ((c as EdgeConstruction).diagonalAngleDeg ?? 0) !== 0;
+  const diagonal = c.kind === 'edgeGrain' && ((c as EdgeConstruction).diagonalAngleDeg ?? 0) !== 0;
+  // block fields and angled/diagonal patterns take an explicit finished width;
+  // straight strip stacks derive it from the stack
+  const explicitWidth = angled || diagonal || isBlocks;
 
-  const setKind = (kind: 'edgeGrain' | 'endGrain') => {
+  const setKind = (kind: 'edgeGrain' | 'endGrain' | 'blocks') => {
     updateBoard((d) => {
       if (kind === d.construction.kind) return;
       if (kind === 'edgeGrain') {
         d.construction = { kind: 'edgeGrain', layers: d.construction.layers };
+      } else if (kind === 'blocks') {
+        const strips = d.construction.layers[0]?.strips ?? [];
+        d.construction = {
+          kind: 'blocks',
+          layers: d.construction.layers,
+          pattern: {
+            kind: 'pinwheel',
+            unit: inch(4.5),
+            speciesA: strips[0]?.species ?? 'black-walnut',
+            speciesB: strips[1]?.species ?? 'hard-maple',
+          },
+        };
+        // block fields need an explicit width — they are not derived from a stack
+        if (d.targetWidth <= 0) d.targetWidth = inch(12);
       } else {
         d.construction = {
           kind: 'endGrain',
@@ -50,11 +69,14 @@ export function LayerPanel() {
     <div className="panel layer-panel">
       <h3>Construction</h3>
       <div className="row seg">
-        <button className={!isEnd ? 'seg-on' : ''} onClick={() => setKind('edgeGrain')}>Edge grain</button>
-        <button className={isEnd ? 'seg-on' : ''} onClick={() => setKind('endGrain')}>End grain</button>
+        <button className={c.kind === 'edgeGrain' ? 'seg-on' : ''} onClick={() => setKind('edgeGrain')}>Edge grain</button>
+        <button className={c.kind === 'endGrain' ? 'seg-on' : ''} onClick={() => setKind('endGrain')}>End grain</button>
+        <button className={c.kind === 'blocks' ? 'seg-on' : ''} onClick={() => setKind('blocks')}>Blocks</button>
       </div>
 
-      {!isEnd && (
+      {c.kind === 'blocks' && <BlockControls />}
+
+      {c.kind === 'edgeGrain' && (
         <label className="row">
           <span>Stripe angle</span>
           <select
@@ -160,13 +182,13 @@ export function LayerPanel() {
         <span>Length</span>
         <DimInput value={board.targetLength} onCommit={(nm) => updateBoard((d) => void (d.targetLength = nm))} />
       </label>
-      {(angled || diagonal) && (
+      {explicitWidth && (
         <label className="row">
           <span>Width</span>
           <DimInput value={board.targetWidth} onCommit={(nm) => updateBoard((d) => void (d.targetWidth = nm))} />
         </label>
       )}
-      {!angled && !diagonal && (
+      {!explicitWidth && (
         <div className="row hint-row">
           <span>Width</span>
           <span className="hint">derived from the strip stack</span>
@@ -231,6 +253,8 @@ export function LayerPanel() {
         )}
       </details>
 
+      {c.kind !== 'blocks' && (
+        <>
       <h3>
         Layer stack
         <span className="hint"> (glue-up #1, left → right)</span>
@@ -252,6 +276,8 @@ export function LayerPanel() {
           + Add group
         </button>
       </div>
+        </>
+      )}
     </div>
   );
 

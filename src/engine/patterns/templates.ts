@@ -230,6 +230,57 @@ export const TEMPLATES: TemplateDef[] = [
       ),
   },
   {
+    id: 'pinwheel',
+    name: 'Pinwheel',
+    description: 'Rotating 4-arm blocks in walnut and maple — a flat-panel glue-up.',
+    build: () =>
+      base(
+        'Pinwheel',
+        {
+          kind: 'blocks',
+          pattern: { kind: 'pinwheel', unit: inch(4.5), speciesA: 'black-walnut', speciesB: 'hard-maple' },
+          layers: [g(1, s('black-walnut', inch(1.5)), s('hard-maple', inch(1.5)))],
+        },
+        { targetLength: inch(18), targetWidth: inch(13.5), stockThickness: inch(0.875) },
+      ),
+  },
+  {
+    id: 'basket-weave',
+    name: 'Basket Weave',
+    description: 'Alternating 3-slat units that read as woven strips.',
+    build: () =>
+      base(
+        'Basket Weave',
+        {
+          kind: 'blocks',
+          pattern: { kind: 'basketweave', unit: inch(3), slats: 3, speciesA: 'black-cherry', speciesB: 'hard-maple' },
+          layers: [g(1, s('black-cherry', inch(1)), s('hard-maple', inch(1)))],
+        },
+        { targetLength: inch(18), targetWidth: inch(12), stockThickness: inch(0.875) },
+      ),
+  },
+  {
+    id: 'tumbling-blocks',
+    name: 'Tumbling Blocks',
+    description: '3-D cube illusion from three species on a rhombille tiling.',
+    build: () =>
+      base(
+        'Tumbling Blocks',
+        {
+          kind: 'blocks',
+          pattern: {
+            kind: 'tumbling',
+            side: inch(1.75),
+            speciesA: 'hard-maple',
+            speciesB: 'black-walnut',
+            speciesC: 'black-cherry',
+          },
+          layers: [g(1, s('hard-maple', inch(1.5)), s('black-walnut', inch(1.5)), s('black-cherry', inch(1.5)))],
+        },
+        { targetLength: inch(16), targetWidth: inch(12), stockThickness: inch(0.875) },
+      ),
+  },
+  {
     id: 'random-rustic',
     name: 'Random Rustic',
     description: 'Seeded random stripe mix — deterministic for a given seed.',

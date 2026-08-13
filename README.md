@@ -1,8 +1,9 @@
 # BetterBoards
 
 A local-first, browser-based design tool for woodworkers building cutting boards — edge-grain,
-end-grain, checkerboard, brick, chevron, and herringbone patterns — with **kerf-aware cut lists**,
-dimensioned blueprints, and procedural build instructions.
+end-grain, checkerboard, chevron, pinwheel, and tumbling-block patterns, in any shape from a
+rectangle to a handled paddle — with **kerf-aware cut lists**, dimensioned blueprints, procedural
+build instructions, and CNC output.
 
 All geometry is deterministic integer math. **No LLMs, no network calls, no accounts.** The cut list
 is not inferred from the picture; the picture is rendered *from* the cut list, so the drawing and the
@@ -19,18 +20,24 @@ To use it as a local app:
 
 ```bash
 npm run build
-npm run serve      # serves dist/ via npx serve
+npm run serve         # serves dist/ via npx serve
+
+npm run build:single  # dist-single/index.html — one file, opens with no server at all
 ```
 
-`dist/` is a plain static bundle — any file server works, and it runs fully offline.
+`dist/` is a plain static bundle — any file server works, and it runs fully offline. The
+single-file build inlines everything into one ~330 KB HTML file you can open straight from disk.
 
 ## What it does
 
 - **Design** — layer-stack editor with repeat groups; type widths the way you'd say them
-  (`1 3/4`, `1.75`, `44mm`). Templates for stripes, three-wood bands, checkerboard, brick,
-  chevron, herringbone, diagonal accent, and seeded-random rustic.
-- **Live views** — finished top view, glue-up #1 cross-section, and a crosscut plan with numbered
-  cut lines. Click any slice to flip or rotate it individually.
+  (`1 3/4`, `1.75`, `44mm`). 13 templates: stripes, three-wood bands, checkerboard, brick,
+  chevron, herringbone, diagonal accent, paddle, round, pinwheel, basket weave, tumbling blocks,
+  and seeded-random rustic.
+- **Shapes** — rectangle (with corner radius), ellipse/circle, filleted paddle, or a custom
+  polygon. The outline is cut from the blank, so it never changes the glue-up.
+- **Live views** — finished top view, glue-up #1 cross-section, a crosscut plan with numbered
+  cut lines, a rotatable 3-D preview, and the CNC toolpaths. Click any slice to flip or rotate it.
 - **Cut list** — rip schedule, crosscut schedule, rough board feet per species (with milling
   allowances and a waste factor), glue/clamp estimates, and a full allowances audit box.
 - **Species** — 30-species database with Janka, porosity, movement, and curated cautions.
@@ -38,8 +45,14 @@ npm run serve      # serves dist/ via npx serve
   Janka window, grain, price, or your own inventory.
 - **Checks** — manufacturability lint (sub-kerf strips, open-pore share, movement mismatch, soft or
   knife-dulling species, slice-count sanity, rounding drift), each with a plain-English "why".
-- **Export** — printable blueprint (4 pages), SVG, Excel-safe CSV cut list, Markdown instructions,
-  and a versioned `.cbproj` project file. Undo/redo and localStorage autosave throughout.
+- **CNC** — perimeter profile with holding tabs, juice groove, handle recess, and single-line
+  engraving. Machine profiles for GRBL/Shapeoko/Onefinity/LinuxCNC, chipload-based feeds, a
+  toolpath visualizer, and a self-auditing G-code emitter that refuses to write an unsafe file.
+- **Stock optimizer** — packs the project's parts onto the boards you actually own and reports
+  utilization, offcuts, and shortfall.
+- **Export** — printable blueprint (up to 5 pages), SVG, Excel-safe CSV cut list, Markdown
+  instructions, G-code / DXF / SVG toolpaths, and a versioned `.cbproj` project file.
+  Undo/redo and localStorage autosave throughout.
 
 ## Precision
 
@@ -51,15 +64,19 @@ plus a cumulative-drift warning if the total exceeds half a kerf.
 ## Development
 
 ```bash
-npm test           # 51 unit + property tests
+npm test           # 134 unit + property tests
 npm run typecheck  # tsc --noEmit (strict)
 npm run demo       # prints a cut list for a striped board
 node scripts/smoke.mjs /tmp/shots           # browser smoke test with screenshots
+node scripts/cnc-check.mjs                 # CNC panel → toolpaths → G-code export
+node scripts/v2-check.mjs                  # block patterns + 3-D preview
+node scripts/singlefile-check.mjs          # single-file build, from file://
 npx tsx scripts/blueprint-preview.mjs chevron /tmp/bp   # render blueprint pages to PNG
 ```
 
-The engine (`src/engine/`) is pure and UI-free: units, construction pipeline, cut list, color,
-patterns, validation. The UI (`src/ui/`) and exports (`src/exports/`) only consume its output.
+The engine (`src/engine/`) is pure and UI-free: units, geometry, construction pipeline, cut list,
+colour, patterns, validation, CNC. The UI (`src/ui/`) and exports (`src/exports/`) only consume
+its output.
 
 ## Docs
 

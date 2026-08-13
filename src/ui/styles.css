@@ -268,3 +268,21 @@ button.tiny { padding: 1px 6px; font-size: 10.5px; }
 }
 .cnc-warnings { background: #fdf6e6; color: var(--warn); border: 1px solid #ecd9a8; }
 .cnc-errors { background: #fdeeed; color: var(--err); border: 1px solid #f0c8c4; }
+
+/* ---------- 3D preview ---------- */
+
+.preview3d svg { max-width: 100%; height: auto; filter: drop-shadow(0 6px 14px rgba(60, 40, 20, .28)); }
+.preview3d-controls { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.preview3d-controls label { display: inline-flex; align-items: center; gap: 6px; color: var(--faint); font-size: 11.5px; }
+.preview3d-controls input[type='range'] { width: 160px; }
+
+/* ---------- stock optimizer ---------- */
+
+.inv-table input { width: 52px; }
+.pack-list { display: flex; flex-direction: column; gap: 5px; margin-top: 6px; }
+.pack-board { display: flex; flex-direction: column; gap: 2px; }
+.pack-label { font-size: 10.5px; color: var(--faint); }
+.pack-bar { display: flex; height: 13px; border: 1px solid var(--line); border-radius: 3px; overflow: hidden; }
+.pack-bar i { display: block; border-right: 1px solid rgba(0, 0, 0, .28); min-width: 1px; }
+.pack-bar i:last-child { border-right: none; }
+.pack-offcut { background: repeating-linear-gradient(45deg, #eee 0 4px, #e2e2e2 4px 8px); }
