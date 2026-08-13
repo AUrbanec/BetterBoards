@@ -1,4 +1,6 @@
 import type { Nm } from '../units';
+import type { Outline, OutlineSpec } from '../geometry/outline';
+import type { CncOptions } from '../cnc/types';
 
 export type SpeciesId = string;
 
@@ -86,6 +88,14 @@ export interface BoardSpec {
   roughStock: boolean;
   /** Shifts which part of the stripe run is visible (angled/diagonal patterns). */
   patternOffset: Nm;
+  /**
+   * Finished shape, inscribed in the blank. Omitted = plain rectangle.
+   * The outline never changes the glue-up — only the preview, the blank-size
+   * check, and the CNC profile.
+   */
+  outline?: OutlineSpec;
+  /** CNC operations, when the user has enabled the module. */
+  cnc?: CncOptions;
 }
 
 /* ------------------------------------------------------------------ */
@@ -182,6 +192,8 @@ export interface PipelineResult {
   diagonalPanel?: { panelLength: Nm; panelWidth: Nm; angleDeg: number };
   /** Assembled (pre-trim) dims when they differ from target. */
   assembled?: { length: Nm; width: Nm };
+  /** Finished shape resolved against the blank (always present). */
+  outline: Outline;
 }
 
 /** Expand layer groups into the flat ordered strip list. */

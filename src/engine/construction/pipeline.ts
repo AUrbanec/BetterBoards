@@ -11,6 +11,8 @@
  */
 
 import { assertInt, type Nm } from '../units';
+import { isPlainRect, outlineToRing, resolveOutline, type Outline } from '../geometry/outline';
+import { clipByConvex, intersectionArea, type Ring } from '../geometry/polygon';
 import {
   expandLayers,
   type BoardSpec,
@@ -152,10 +154,142 @@ export function runPipeline(board: BoardSpec): PipelineResult {
     return emptyResult(issues);
   }
 
-  if (board.construction.kind === 'edgeGrain') {
-    return edgeGrainPipeline(board, strips, slabWidth, issues);
+  const partial =
+    board.construction.kind === 'edgeGrain'
+      ? edgeGrainPipeline(board, strips, slabWidth, issues)
+      : endGrainPipeline(board, strips, slabWidth, slabThicknessAfterPlaning, issues);
+
+  return attachOutline(board, partial);
+}
+
+/** Everything the construction stages produce, before the shape is applied. */
+type PartialResult = Omit<PipelineResult, 'outline'>;
+
+/**
+ * Resolve the finished shape against the blank the pattern produced. The
+ * outline is always inscribed in that blank — cutting a shape never changes the
+ * glue-up, it only removes material from a rectangle you already glued.
+ */
+function attachOutline(board: BoardSpec, partial: PartialResult): PipelineResult {
+  const outline = resolveOutline(board.outline, partial.finished.length, partial.finished.width);
+  const issues = partial.issues;
+
+  if (board.outline?.kind === 'paddle') {
+    const p = board.outline;
+    if (p.handleL >= partial.finished.length * 0.6) {
+      issues.push({
+        id: 'handle-too-long',
+        level: 'warning',
+        message: 'The handle is longer than 60% of the board and has been clamped — lengthen the board or shorten the handle.',
+      });
+    }
+    if (p.handleW > partial.finished.width) {
+      issues.push({
+        id: 'handle-too-wide',
+        level: 'warning',
+        message: 'The handle is wider than the board and has been clamped to the full width.',
+      });
+    }
   }
-  return endGrainPipeline(board, strips, slabWidth, slabThicknessAfterPlaning, issues);
+  if (board.outline?.kind === 'polygon') {
+    const pts = board.outline.points;
+    if (pts.length < 3) {
+      issues.push({ id: 'polygon-degenerate', level: 'error', message: 'A custom outline needs at least three points.' });
+    } else {
+      const b = { maxX: Math.max(...pts.map((p) => p.x)), maxY: Math.max(...pts.map((p) => p.y)) };
+      if (b.maxX > partial.finished.length + 1 || b.maxY > partial.finished.width + 1) {
+        issues.push({
+          id: 'outline-exceeds-blank',
+          level: 'error',
+          message: 'The custom outline is larger than the glued blank. Enlarge the board or shrink the outline.',
+        });
+      }
+    }
+  }
+
+  return {
+    ...partial,
+    ok: partial.ok && !issues.some((i) => i.level === 'error'),
+    outline,
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* Outline-aware area accounting                                       */
+/* ------------------------------------------------------------------ */
+
+/** The quad a grid cell occupies in board space (float nm — angled rows shear). */
+export function cellQuadPoints(grid: PipelineResult['grid'], rowIndex: number, cellIndex: number): Ring {
+  const row = grid.rows[rowIndex];
+  const c = row.cells[cellIndex];
+  switch (grid.map.kind) {
+    case 'rows-y':
+      return [
+        { x: c.u0, y: row.v0 },
+        { x: c.u1, y: row.v0 },
+        { x: c.u1, y: row.v1 },
+        { x: c.u0, y: row.v1 },
+      ];
+    case 'rows-x': {
+      const h = row.v1 - row.v0;
+      const y0 = c.u0 * row.scale - row.offset;
+      const y1 = c.u1 * row.scale - row.offset;
+      const d = row.shear * h;
+      return [
+        { x: row.v0, y: y0 },
+        { x: row.v1, y: y0 + d },
+        { x: row.v1, y: y1 + d },
+        { x: row.v0, y: y1 },
+      ];
+    }
+    case 'diag': {
+      const a = (grid.map.angleDeg * Math.PI) / 180;
+      const dir = { x: Math.cos(a), y: Math.sin(a) };
+      const nrm = { x: -Math.sin(a), y: Math.cos(a) };
+      const rowsExtent = grid.rows.length ? grid.rows[grid.rows.length - 1].v1 : 0;
+      const cx = grid.boardLength / 2;
+      const cy = grid.boardWidth / 2;
+      const at = (v: number, t: number) => ({
+        x: cx + nrm.x * (v - rowsExtent / 2 + row.offset) + dir.x * t,
+        y: cy + nrm.y * (v - rowsExtent / 2 + row.offset) + dir.y * t,
+      });
+      const t0 = c.u0 - row.run / 2;
+      const t1 = c.u1 - row.run / 2;
+      return [at(row.v0, t0), at(row.v0, t1), at(row.v1, t1), at(row.v1, t0)];
+    }
+  }
+}
+
+/**
+ * Visible surface area per species, clipped to the outline. Used for the legend
+ * percentages and the open-pore lint, both of which must reflect the *finished*
+ * board, not the blank.
+ */
+export function speciesAreas(result: PipelineResult): { bySpecies: Map<string, number>; total: number } {
+  const bySpecies = new Map<string, number>();
+  let total = 0;
+  const plain = isPlainRect(result.outline);
+  const ring: Ring | null = plain ? null : outlineToRing(result.outline);
+
+  for (let ri = 0; ri < result.grid.rows.length; ri++) {
+    const row = result.grid.rows[ri];
+    for (let ci = 0; ci < row.cells.length; ci++) {
+      const quad = cellQuadPoints(result.grid, ri, ci);
+      const a = ring ? intersectionArea(ring, quad) : Math.abs((row.v1 - row.v0) * (row.cells[ci].u1 - row.cells[ci].u0));
+      if (a <= 0) continue;
+      const species = row.cells[ci].species;
+      bySpecies.set(species, (bySpecies.get(species) ?? 0) + a);
+      total += a;
+    }
+  }
+  return { bySpecies, total };
+}
+
+/** Cell quads clipped to the outline — what the preview actually fills. */
+export function clippedCellQuad(result: PipelineResult, rowIndex: number, cellIndex: number): Ring {
+  const quad = cellQuadPoints(result.grid, rowIndex, cellIndex);
+  if (isPlainRect(result.outline)) return quad;
+  return clipByConvex(outlineToRing(result.outline), quad);
 }
 
 function emptyResult(issues: PipelineIssue[]): PipelineResult {
@@ -172,6 +306,7 @@ function emptyResult(issues: PipelineIssue[]): PipelineResult {
       slabThicknessAfterPlaning: 0,
       ripCount: 0,
     },
+    outline: { kind: 'rect', w: 0, h: 0, cornerRadius: 0 },
   };
 }
 
@@ -182,7 +317,7 @@ function edgeGrainPipeline(
   strips: StripSpec[],
   slabWidth: Nm,
   issues: PipelineIssue[],
-): PipelineResult {
+): PartialResult {
   const { cleanup } = board;
   const construction = board.construction as Extract<BoardSpec['construction'], { kind: 'edgeGrain' }>;
   const angle = construction.diagonalAngleDeg ?? 0;
@@ -269,7 +404,7 @@ function endGrainPipeline(
   slabWidth: Nm,
   slabThicknessAfterPlaning: Nm,
   issues: PipelineIssue[],
-): PipelineResult {
+): PartialResult {
   const construction = board.construction as Extract<BoardSpec['construction'], { kind: 'endGrain' }>;
   const { kerf, cleanup } = board;
   const angleDeg = construction.crosscut.angleDeg;

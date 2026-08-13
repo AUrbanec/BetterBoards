@@ -99,7 +99,7 @@ export function ExportDrawer({ result, cutlist, lints, info }: Props) {
           <button
             disabled={blocked}
             onClick={() => {
-              const svg = renderBoardSvg(result.grid, visual, { pxPerIn: 96, showLabels: false, idPrefix: 'ex' });
+              const svg = renderBoardSvg(result.grid, visual, { pxPerIn: 96, showLabels: false, idPrefix: 'ex', outline: result.outline });
               download(`${slug}.svg`, 'image/svg+xml', svg);
             }}
           >

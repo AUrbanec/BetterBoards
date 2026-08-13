@@ -5,6 +5,7 @@
  */
 
 import { formatCutDim, formatDim, type UnitMode } from '../engine/units';
+import { isPlainRect } from '../engine/geometry/outline';
 import type { BoardSpec, PipelineResult } from '../engine/construction/types';
 import type { CutList, SpeciesInfoLookup } from '../engine/cutlist/cutlist';
 import { formatSliceList, speciesLetters } from './shared';
@@ -153,6 +154,35 @@ export function generateInstructions(
     `Square the ends and edges to the finished ${f(result.finished.length)} × ${f(result.finished.width)}. Take equal nibbles from both sides to keep the pattern centered.`,
     endGrain ? 'Back up every end-grain exit edge with a sacrificial scrap — blowout is guaranteed otherwise.' : undefined,
   );
+
+  // shaping (non-rectangular outlines only)
+  if (!isPlainRect(result.outline)) {
+    const o = result.outline;
+    let how: string;
+    switch (o.kind) {
+      case 'rect':
+        how = `Mark a ${f(o.cornerRadius)} radius at each corner (a compass or a can of the right size works), then cut and sand to the line.`;
+        break;
+      case 'ellipse':
+        how = `Mark the center at ${f(o.rx)} × ${f(o.ry)} from one corner, then scribe the ellipse — a trammel, or the two-pins-and-a-loop-of-string method with foci on the long axis.`;
+        break;
+      case 'paddle':
+        how =
+          `Lay out the centerline along the length. The body is ${f(o.bodyW)} × ${f(o.bodyH)} with ${f(o.r)} corners; ` +
+          `the handle runs ${f(o.handleL)} past the body, ${f(o.handleW)} wide, centered on that line with a ${f(Math.round(o.handleW / 2))} radius at its end.`;
+        break;
+      case 'polygon':
+        how = `Transfer the ${o.points.length} outline points from the blueprint's shaping page, connect them, and cut to the line.`;
+        break;
+    }
+    add(
+      'Cut the outline',
+      `${how} Cut just outside the line at the bandsaw or with a jigsaw, then flush-trim to a template or sand to the line. The blank you glued up is already the right size — you are only removing waste here.`,
+      endGrain
+        ? 'End grain tears out badly on curves. Take light passes, climb-cut the last whisker, or sand rather than route.'
+        : undefined,
+    );
+  }
 
   // finish
   add(

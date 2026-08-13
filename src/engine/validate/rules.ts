@@ -6,6 +6,7 @@
 
 import { IN, formatFraction, type Nm } from '../units';
 import { expandLayers, type BoardSpec, type PipelineResult } from '../construction/types';
+import { speciesAreas } from '../construction/pipeline';
 import type { CutList } from '../cutlist/cutlist';
 
 export interface Lint {
@@ -112,17 +113,8 @@ export function validateBoard(
     }
   }
 
-  // Open-pore area share.
-  const areaBySpecies = new Map<string, number>();
-  let totalArea = 0;
-  for (const row of result.grid.rows) {
-    const h = row.v1 - row.v0;
-    for (const c of row.cells) {
-      const a = (c.u1 - c.u0) * h;
-      areaBySpecies.set(c.species, (areaBySpecies.get(c.species) ?? 0) + a);
-      totalArea += a;
-    }
-  }
+  // Open-pore area share, measured on the *finished* (outline-clipped) surface.
+  const { bySpecies: areaBySpecies, total: totalArea } = speciesAreas(result);
   if (totalArea > 0) {
     let openArea = 0;
     for (const [id, a] of areaBySpecies) {

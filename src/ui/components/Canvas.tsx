@@ -51,7 +51,13 @@ function TopView({ result, showLabels }: { result: PipelineResult; showLabels: b
     const lenIn = result.grid.boardLength / IN;
     const widIn = result.grid.boardWidth / IN;
     const pxPerIn = Math.max(6, Math.min(52, (width - 60) / lenIn, 460 / widIn));
-    return renderBoardSvg(result.grid, visual, { pxPerIn, showLabels, idPrefix: 'live' });
+    return renderBoardSvg(result.grid, visual, {
+      pxPerIn,
+      showLabels,
+      idPrefix: 'live',
+      outline: result.outline,
+      showBlank: true,
+    });
   }, [result, visual, width, showLabels]);
 
   return (

@@ -6,6 +6,7 @@
 
 import { IN } from '../engine/units';
 import type { CellGrid, GridRow } from '../engine/construction/types';
+import { isPlainRect, outlineToPath, type Outline } from '../engine/geometry/outline';
 import { escapeXml } from './shared';
 
 export interface SpeciesVisual {
@@ -23,6 +24,13 @@ export interface BoardSvgOptions {
   showGlueLines?: boolean;
   /** id prefix so several boards can share one document */
   idPrefix?: string;
+  /**
+   * Finished shape. Cells are clipped to it via an SVG clipPath, so arcs stay
+   * mathematically exact in print instead of being flattened to chords.
+   */
+  outline?: Outline;
+  /** Draw the blank's rectangle behind the shape (shows what gets cut away). */
+  showBlank?: boolean;
 }
 
 type Pt = [number, number];
@@ -102,7 +110,11 @@ export function renderBoardGroup(
   const speciesIds = new Set<string>();
   for (const row of grid.rows) for (const c of row.cells) speciesIds.add(c.species);
   const grainAngle = grid.map.kind === 'rows-y' ? 0 : grid.map.kind === 'rows-x' ? 90 : grid.map.angleDeg;
-  let defs = `<clipPath id="${pre}-clip"><rect x="0" y="0" width="${W.toFixed(2)}" height="${H.toFixed(2)}"/></clipPath>`;
+  const shaped = opts.outline && !isPlainRect(opts.outline);
+  const clipShape = shaped
+    ? `<path d="${outlineToPath(opts.outline!, s)}"/>`
+    : `<rect x="0" y="0" width="${W.toFixed(2)}" height="${H.toFixed(2)}"/>`;
+  let defs = `<clipPath id="${pre}-clip">${clipShape}</clipPath>`;
   for (const id of speciesIds) {
     const v = visual(id);
     defs += `<pattern id="${pre}-grain-${id}" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(${grainAngle})">` +
@@ -112,7 +124,12 @@ export function renderBoardGroup(
       `</pattern>`;
   }
 
-  let body = `<g clip-path="url(#${pre}-clip)">`;
+  let body = '';
+  if (shaped && opts.showBlank) {
+    // the rectangle you glue up, with the waste shown faintly around the shape
+    body += `<rect x="0" y="0" width="${W.toFixed(2)}" height="${H.toFixed(2)}" fill="#efe7da" stroke="#b9ab93" stroke-width="0.8" stroke-dasharray="5,4"/>`;
+  }
+  body += `<g clip-path="url(#${pre}-clip)">`;
   // background (shows through if angled coverage has gaps — makes problems visible)
   body += `<rect x="0" y="0" width="${W.toFixed(2)}" height="${H.toFixed(2)}" fill="#f3ede2"/>`;
 
@@ -145,7 +162,10 @@ export function renderBoardGroup(
   });
   body += labels.join('');
   body += `</g>`;
-  body += `<rect x="0" y="0" width="${W.toFixed(2)}" height="${H.toFixed(2)}" fill="none" stroke="#241809" stroke-width="1.4"/>`;
+  // finished edge — the actual cut line
+  body += shaped
+    ? `<path d="${outlineToPath(opts.outline!, s)}" fill="none" stroke="#241809" stroke-width="1.4"/>`
+    : `<rect x="0" y="0" width="${W.toFixed(2)}" height="${H.toFixed(2)}" fill="none" stroke="#241809" stroke-width="1.4"/>`;
 
   return { defs, body, widthPx: W, heightPx: H };
 }

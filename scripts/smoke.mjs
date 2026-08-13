@@ -120,6 +120,21 @@ await page.locator('.canvas-tabs button', { hasText: 'Crosscut' }).click();
 await page.waitForTimeout(250);
 await step('10-crosscut');
 
+// 11b. outline shaping: switch to a paddle and confirm the clip path appears
+await page.locator('.canvas-tabs button', { hasText: 'Top' }).click();
+const outlineSelect = page.locator('.left select').filter({ hasText: 'Paddle (handle)' });
+await outlineSelect.selectOption('paddle');
+await page.waitForTimeout(250);
+const hasPaddlePath = await page.locator('.board-svg svg clipPath path').count();
+if (hasPaddlePath === 0) errors.push('paddle outline did not produce a clip path');
+console.log(`outline: paddle clip paths = ${hasPaddlePath}`);
+await step('11a-paddle');
+await outlineSelect.selectOption('ellipse');
+await page.waitForTimeout(250);
+await step('11b-ellipse');
+await outlineSelect.selectOption('rect');
+await page.waitForTimeout(200);
+
 // 12. export drawer
 await page.locator('.topbar-tools button', { hasText: 'Export' }).click();
 await page.waitForSelector('.export-grid');

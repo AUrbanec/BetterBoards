@@ -186,6 +186,50 @@ export const TEMPLATES: TemplateDef[] = [
     },
   },
   {
+    id: 'paddle-serving',
+    name: 'Paddle Serving Board',
+    description: 'Edge-grain walnut & maple with a handle — shows outline shaping.',
+    build: () =>
+      base(
+        'Paddle Serving Board',
+        {
+          kind: 'edgeGrain',
+          layers: [
+            g(1, s('black-walnut', inch(1.5))),
+            g(3, s('hard-maple', inch(1)), s('black-walnut', inch(1))),
+            g(1, s('hard-maple', inch(1)), s('black-walnut', inch(1.5))),
+          ],
+        },
+        {
+          targetLength: inch(20),
+          stockThickness: inch(0.875),
+          outline: { kind: 'paddle', handleL: inch(6), handleW: inch(2.5), filletR: inch(1.25) },
+        },
+      ),
+  },
+  {
+    id: 'round-cheese',
+    name: 'Round Cheese Board',
+    description: 'Circular edge-grain board in cherry and maple.',
+    build: () =>
+      base(
+        'Round Cheese Board',
+        {
+          kind: 'edgeGrain',
+          layers: [
+            g(1, s('black-cherry', inch(1.5))),
+            g(4, s('hard-maple', inch(0.75)), s('black-cherry', inch(1.5))),
+            g(1, s('hard-maple', inch(0.75))),
+          ],
+        },
+        {
+          targetLength: inch(12),
+          stockThickness: inch(0.875),
+          outline: { kind: 'ellipse' },
+        },
+      ),
+  },
+  {
     id: 'random-rustic',
     name: 'Random Rustic',
     description: 'Seeded random stripe mix — deterministic for a given seed.',

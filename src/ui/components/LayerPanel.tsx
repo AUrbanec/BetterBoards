@@ -1,8 +1,10 @@
 import { inch, type Nm } from '../../engine/units';
 import type { BoardSpec, LayerGroup, SliceTransform } from '../../engine/construction/types';
+import type { OutlineSpec } from '../../engine/geometry/outline';
 import { useStore } from '../../store/store';
 import { useSpeciesVisual } from '../hooks';
 import { DimInput } from './DimInput';
+import { OutlineControls } from './OutlineControls';
 
 type EndConstruction = Extract<BoardSpec['construction'], { kind: 'endGrain' }>;
 type EdgeConstruction = Extract<BoardSpec['construction'], { kind: 'edgeGrain' }>;
@@ -184,6 +186,9 @@ export function LayerPanel() {
         <span>Kerf</span>
         <DimInput value={board.kerf} onCommit={(nm) => updateBoard((d) => void (d.kerf = nm))} width={60} />
       </label>
+
+      <h3>Shape <span className="hint">cut from the blank</span></h3>
+      <OutlineControls />
 
       <details className="advanced">
         <summary>Allowances &amp; stock</summary>
