@@ -261,27 +261,32 @@ function page2(ctx: Ctx): string {
   content += `<text x="${bx}" y="${by + sh + 20}" ${FONT} font-size="11" fill="${INK}">Strip length: ${fmt(g1.slabLength)} (includes ${fd(ctx)(ctx.board.cleanup.lengthTrim)} end trim). Flatten slab to ${fmt(g1.slabThicknessAfterPlaning)} after cure.</text>`;
 
   // rip schedule table
-  const rows = ctx.cutlist.ripSchedule.map((g) => [
-    `${letters.get(g.species) ?? ''}`,
-    ctx.info(g.species)?.name ?? g.species,
-    `${g.count}`,
-    fmt(g.width),
-    fmt(g.thickness),
-    fmt(g.length),
-  ]);
+  const anyShapes = ctx.cutlist.ripSchedule.some((g) => g.pieceId);
+  const rows = ctx.cutlist.ripSchedule.map((g) =>
+    [
+      `${letters.get(g.species) ?? ''}`,
+      clip(ctx.info(g.species)?.name ?? g.species, anyShapes ? 130 : 190),
+      ...(anyShapes ? [clip((g.pieceId ?? 'strip') + (g.angleDeg ? ` @${g.angleDeg}°` : ''), 150)] : []),
+      `${g.count}`,
+      g.width2 !== undefined ? `${fmt(g.width)}→${fmt(g.width2)}` : fmt(g.width),
+      fmt(g.thickness),
+      fmt(g.length),
+    ],
+  );
   const t = table(
     MARGIN,
     by + sh + 52,
     [
       { header: '', width: 24 },
-      { header: 'Species', width: 190 },
-      { header: 'Qty', width: 40, align: 'end' },
-      { header: 'Width', width: 150, align: 'end' },
-      { header: 'Thick', width: 110, align: 'end' },
-      { header: 'Length', width: 160, align: 'end' },
+      { header: 'Species', width: anyShapes ? 130 : 190 },
+      ...(anyShapes ? [{ header: 'Shape', width: 150 } as const] : []),
+      { header: 'Qty', width: 40, align: 'end' as const },
+      { header: 'Width', width: anyShapes ? 120 : 150, align: 'end' as const },
+      { header: 'Thick', width: 90, align: 'end' as const },
+      { header: 'Length', width: anyShapes ? 110 : 160, align: 'end' as const },
     ],
     rows,
-    'Rip schedule',
+    anyShapes ? 'Piece schedule' : 'Rip schedule',
   );
   content += t.svg;
 

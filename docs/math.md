@@ -149,3 +149,64 @@ than `|delta|` — reliable because the ring is densified to 1/32″ segments fi
 test: every offset point sits at `|delta|` from the source (±2%), inward offsets stay inside,
 offsetting a circle by `d` gives a concentric circle of radius `r + d`, and an inward offset larger
 than the shape collapses to empty rather than inverting.
+
+## Build stages and glue-up counting
+
+`exports/stages.ts` derives the whole build — every rip, glue-up, crosscut, and
+flattening — from pipeline facts. The written instructions and the on-screen
+stage timeline are two renderers over that one list, so the app cannot show a
+different glue-up count than it prints. Glue stages carry a 1-based `glueUp`
+number; the intro states the totals up front, because cure time is the thing
+that actually determines whether a design fits in a weekend.
+
+| Construction | Glue-ups | Why |
+|---|---|---|
+| Edge grain, straight or diagonal | 1 | rip, glue, done |
+| End grain (square or angled) | 2 | slab, then the crosscut slices |
+| Block fields (pinwheel, weave, tumbling) | 2 | rows, then rows into the panel |
+| Curves | 3 | each column, then column groups, then the panel |
+| Patch studio | 3 | split patches, then rows, then the panel |
+
+## Curves from straight cuts
+
+A parabola cannot be sawn, but a sequence of straight crosscuts whose chords lie
+on one can. `patterns/curves.ts` divides the board into `n` columns and makes a
+single angled crosscut across each; the assembled boundary is the chord path.
+Miter angles run from 0° at the vertex to steepest at the edges, and each column
+gets its own setting in the cut list.
+
+The classic curve-stitching construction — a parabola as the *envelope* of its
+tangent lines — is deliberately **not** what this generates. Tangents to a
+parabola cross inside the board, so the regions between them are not strips and
+cannot be glued up as a panel. The chord construction is the one that survives
+contact with a table saw.
+
+Tests assert the boundary's second differences are constant (a real parabola,
+not a polyline that merely looks curved) and that the sagitta shrinks as columns
+increase.
+
+## The patch lattice
+
+`patterns/patches.ts` backs the interactive designer. Placement feels free and is
+in fact constrained: a patch is always one of eight shapes on a fixed square
+lattice. That constraint is what makes the cut list arithmetic instead of
+guesswork — the same reason quilt design software has always worked this way.
+
+| Patch | Regions | Cut recipe |
+|---|---|---|
+| Solid | 1 | rip a strip, crosscut to the cell |
+| Half-square triangle | 2 | cut a cell-sized square, split corner to corner — 2 per square |
+| Quarter-square / chevron | 4 | cut a cell-sized square on both diagonals — 4 per square |
+| Split vertical / horizontal | 2 | half-cell rectangles |
+| Four squares | 4 | half-cell squares |
+| Three stripes | 3 | third-cell strips |
+
+Any patch with more than one region is a **sub-assembly**: it is glued and
+squared to the cell before it can join a row. The plan counts those and puts
+them in their own glue-up.
+
+Because a square and a half-square triangle share a species *and* a size while
+needing completely different cuts, the cut list groups by shape as well as
+dimensions. Grouping on size alone silently told the user to cut squares where
+triangles were needed — the regression test in `tests/curves-patches.test.ts`
+locks that shut.

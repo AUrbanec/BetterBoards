@@ -23,14 +23,17 @@ export type BlockPattern =
 export interface PieceSpec {
   pieceId: string;
   species: SpeciesId;
-  /** Nominal finished size of one piece. */
+  /** Nominal finished size of one piece. `w` is the width at the wide end. */
   w: Nm;
   h: Nm;
   count: number;
-  /** Non-90° pieces (tumbling rhombi) carry their cut angle. */
+  /** Non-90° pieces (tumbling rhombi, patch triangles) carry their cut angle. */
   angleDeg?: number;
   /** True when the piece is trimmed by the field edge (a partial). */
   partial?: boolean;
+  /** Tapered strips: width at the narrow end. Cut on a taper jig. */
+  w2?: Nm;
+  tapered?: boolean;
 }
 
 export interface BlockField {
