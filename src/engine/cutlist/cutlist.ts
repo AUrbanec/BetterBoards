@@ -145,7 +145,7 @@ export function buildCutList(
       rawWidthNeeded,
       boardFeetRough: bf,
       costEstimate: cost,
-      purchaseSuggestion: `≈ ${bf.toFixed(1)} bf — e.g. 4/4 stock ${rawWidthIn}″ total width × ${lenFt}′`,
+      purchaseSuggestion: `≈ ${bf.toFixed(1)} bf — e.g. 4/4, ${rawWidthIn}″ wide × ${lenFt}′`,
     });
   }
   perSpecies.sort((a, b) => b.boardFeetRough - a.boardFeetRough);

@@ -88,6 +88,12 @@ export function dimV(x: number, y0: number, y1: number, label: string, extLeft =
 
 /* ---------------- table helper ---------------- */
 
+/** Truncate to fit a column: the tables render in 10.5px monospace (~6.4px/char). */
+function clip(text: string, widthPx: number): string {
+  const max = Math.max(3, Math.floor((widthPx - 6) / 6.4));
+  return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
+}
+
 function table(
   x: number,
   y: number,
@@ -272,7 +278,7 @@ function page3(ctx: Ctx): string {
   const bw = (g1.slabLength / IN) * pxPerIn;
   const bh = (g1.slabWidth / IN) * pxPerIn;
   const bx = MARGIN;
-  const by = contentTop + 26;
+  const by = contentTop + 44; // leaves room for the slab dimension line above it
 
   let content = `<text x="${MARGIN}" y="${contentTop}" ${FONT} font-size="12.5" font-weight="bold" fill="${INK}">Crosscut plan — ${cc.sliceCount} slices at ${cc.angleDeg}°, each ${fmt(cc.sliceWidth)} wide</text>`;
 
@@ -295,10 +301,11 @@ function page3(ctx: Ctx): string {
     if (Math.max(xTop, xBot) > bx + bw + 1) break;
     content += `<line x1="${xTop.toFixed(1)}" y1="${by}" x2="${xBot.toFixed(1)}" y2="${(by + bh).toFixed(1)}" stroke="#c22" stroke-width="1" stroke-dasharray="5,3"/>`;
     if (i < cc.sliceCount) {
-      content += `<text x="${(xTop + advPx / 2 - cot * 6).toFixed(1)}" y="${by + 12}" ${FONT} font-size="9" text-anchor="middle" fill="#c22">${i + 1}</text>`;
+      // above the slab — numbers over dark stripes are unreadable
+      content += `<text x="${(xTop + advPx / 2).toFixed(1)}" y="${by - 5}" ${FONT} font-size="9" text-anchor="middle" fill="#c22">${i + 1}</text>`;
     }
   }
-  content += dimH(bx, bx + bw, by - 12, fmt(g1.slabLength));
+  content += dimH(bx, bx + bw, by - 24, fmt(g1.slabLength));
 
   // arrangement diagram
   const ay = by + bh + 46;
@@ -355,24 +362,25 @@ function page4(ctx: Ctx): string {
   let y = MARGIN + 70;
   let content = '';
 
+  const spCols = [
+    { header: 'Species', width: 190 },
+    { header: 'Strips', width: 50, align: 'end' as const },
+    { header: 'Raw rip width', width: 125, align: 'end' as const },
+    { header: 'Board feet*', width: 85, align: 'end' as const },
+    { header: 'Est. cost', width: 70, align: 'end' as const },
+    { header: 'Buy at least', width: 150 },
+  ];
   const sp = table(
     MARGIN,
     y,
-    [
-      { header: 'Species', width: 185 },
-      { header: 'Strips', width: 50, align: 'end' },
-      { header: 'Raw rip width', width: 130, align: 'end' },
-      { header: 'Board feet*', width: 90, align: 'end' },
-      { header: 'Est. cost', width: 80, align: 'end' },
-      { header: 'Suggested purchase', width: 170 },
-    ],
+    spCols,
     cl.perSpecies.map((s) => [
-      ctx.info(s.species)?.name ?? s.species,
+      clip(ctx.info(s.species)?.name ?? s.species, spCols[0].width),
       `${s.stripCount}`,
       fmt(s.rawWidthNeeded),
       s.boardFeetRough.toFixed(2),
       s.costEstimate !== undefined ? `$${s.costEstimate.toFixed(0)}` : '—',
-      s.purchaseSuggestion.replace(/^≈ [\d.]+ bf — e\.g\. /, ''),
+      clip(s.purchaseSuggestion.replace(/^≈ [\d.]+ bf — e\.g\. /, ''), spCols[5].width),
     ]),
     'Materials by species',
   );
@@ -391,7 +399,7 @@ function page4(ctx: Ctx): string {
     if (cc.reversed.length) rows.push(['Rotate 180°', formatSliceList(cc.reversed)]);
     if (cc.mirrored.length) rows.push(['Flip face-down', formatSliceList(cc.mirrored)]);
     if (cc.shifted.length) rows.push(['Shifted', cc.shifted.map((s) => `#${s.slice} by ${fmt(s.by)}`).join(', ')]);
-    const t = table(MARGIN, y, [{ header: 'Crosscut', width: 150 }, { header: '', width: 420 }], rows);
+    const t = table(MARGIN, y, [{ header: 'Step', width: 150 }, { header: 'Value', width: 420 }], rows, 'Crosscut & arrangement');
     content += t.svg;
     y += t.height + 22;
   }
