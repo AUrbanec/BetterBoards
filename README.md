@@ -30,10 +30,16 @@ single-file build inlines everything into one ~330 KB HTML file you can open str
 
 ## What it does
 
+- **Patch studio** — an interactive designer: drag angular shapes onto a snap grid, rotate and
+  mirror individual patches or the whole design, and watch the cut list stay exact. The lattice is
+  the point — it is what lets every patch reduce to a real cut.
+- **Build stages** — the app tells you how many glue-ups and machining stages a design needs, and
+  numbers them. A striped board is one glue-up; a checkerboard is two; a curve or a patch design is
+  three. The timeline and the printed instructions come from the same source.
 - **Design** — layer-stack editor with repeat groups; type widths the way you'd say them
-  (`1 3/4`, `1.75`, `44mm`). 13 templates: stripes, three-wood bands, checkerboard, brick,
+  (`1 3/4`, `1.75`, `44mm`). 16 templates: stripes, three-wood bands, checkerboard, brick,
   chevron, herringbone, diagonal accent, paddle, round, pinwheel, basket weave, tumbling blocks,
-  and seeded-random rustic.
+  parabolic arch, parabolic lens, a patch-studio star, and seeded-random rustic.
 - **Shapes** — rectangle (with corner radius), ellipse/circle, filleted paddle, or a custom
   polygon. The outline is cut from the blank, so it never changes the glue-up.
 - **Live views** — finished top view, glue-up #1 cross-section, a crosscut plan with numbered
@@ -64,13 +70,14 @@ plus a cumulative-drift warning if the total exceeds half a kerf.
 ## Development
 
 ```bash
-npm test           # 134 unit + property tests
+npm test           # 163 unit + property tests
 npm run typecheck  # tsc --noEmit (strict)
 npm run demo       # prints a cut list for a striped board
 node scripts/smoke.mjs /tmp/shots           # browser smoke test with screenshots
 node scripts/cnc-check.mjs                 # CNC panel → toolpaths → G-code export
 node scripts/v2-check.mjs                  # block patterns + 3-D preview
 node scripts/singlefile-check.mjs          # single-file build, from file://
+node scripts/v3-check.mjs                  # stages, curves, patch studio
 npx tsx scripts/blueprint-preview.mjs chevron /tmp/bp   # render blueprint pages to PNG
 ```
 

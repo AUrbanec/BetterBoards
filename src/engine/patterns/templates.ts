@@ -6,6 +6,7 @@
 
 import { inch, type Nm } from '../units';
 import type { BoardSpec, LayerGroup } from '../construction/types';
+import { emptyGrid, makePatch, type Patch } from './patches';
 
 export interface TemplateDef {
   id: string;
@@ -279,6 +280,97 @@ export const TEMPLATES: TemplateDef[] = [
         },
         { targetLength: inch(16), targetWidth: inch(12), stockThickness: inch(0.875) },
       ),
+  },
+  {
+    id: 'parabolic-arch',
+    name: 'Parabolic Arch',
+    description: 'A parabola drawn with one straight crosscut per column, with a padauk accent line.',
+    build: () =>
+      base(
+        'Parabolic Arch',
+        {
+          kind: 'curve',
+          pattern: {
+            kind: 'parabolic',
+            columns: 16,
+            speciesLow: 'black-walnut',
+            speciesHigh: 'hard-maple',
+            accent: 'padauk',
+            accentWidth: inch(0.1875),
+            rise: 0.62,
+            shape: 'arch',
+            inverted: false,
+          },
+          layers: [g(1, s('black-walnut', inch(1.5)), s('hard-maple', inch(1.5)))],
+        },
+        { targetLength: inch(18), targetWidth: inch(12), stockThickness: inch(0.875) },
+      ),
+  },
+  {
+    id: 'parabolic-lens',
+    name: 'Parabolic Lens',
+    description: 'Two mirrored parabolas forming an eye — straight cuts only.',
+    build: () =>
+      base(
+        'Parabolic Lens',
+        {
+          kind: 'curve',
+          pattern: {
+            kind: 'parabolic',
+            columns: 20,
+            speciesLow: 'black-cherry',
+            speciesHigh: 'hard-maple',
+            accent: 'black-walnut',
+            accentWidth: inch(0.125),
+            rise: 0.72,
+            shape: 'lens',
+            inverted: false,
+          },
+          layers: [g(1, s('black-cherry', inch(1.5)), s('hard-maple', inch(1.5)))],
+        },
+        { targetLength: inch(18), targetWidth: inch(12), stockThickness: inch(0.875) },
+      ),
+  },
+  {
+    id: 'patch-pinwheel-star',
+    name: 'Patch Studio — Star',
+    description: 'A worked example for the interactive designer: half-square triangles making a star.',
+    build: () => {
+      const cell = inch(2.25);
+      const grid = emptyGrid(6, 6, cell);
+      const A = 'hard-maple';
+      const B = 'black-walnut';
+      const set = (col: number, row: number, p: Patch) => {
+        grid.patches[row * grid.cols + col] = p;
+      };
+      const hst = (rot: 0 | 1 | 2 | 3, a: string, b: string): Patch => ({
+        kind: 'hst',
+        rot,
+        flip: false,
+        species: [a, b],
+      });
+      for (let j = 0; j < 6; j++) {
+        for (let i = 0; i < 6; i++) set(i, j, makePatch('full', [A]));
+      }
+      // star points: four HSTs around the middle, mirrored into each quadrant
+      set(2, 1, hst(0, B, A));
+      set(3, 1, hst(1, A, B));
+      set(1, 2, hst(0, B, A));
+      set(4, 2, hst(1, A, B));
+      set(1, 3, hst(3, A, B));
+      set(4, 3, hst(2, B, A));
+      set(2, 4, hst(3, A, B));
+      set(3, 4, hst(2, B, A));
+      set(2, 2, makePatch('full', [B]));
+      set(3, 2, makePatch('full', [B]));
+      set(2, 3, makePatch('full', [B]));
+      set(3, 3, makePatch('full', [B]));
+      return base(
+        'Patch Studio — Star',
+        { kind: 'patch', grid, layers: [g(1, s(A, inch(1.5)), s(B, inch(1.5)))] },
+        { targetLength: 6 * cell, targetWidth: 6 * cell, stockThickness: inch(0.875) },
+      );
+    },
   },
   {
     id: 'random-rustic',

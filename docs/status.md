@@ -34,10 +34,23 @@ Phase numbering follows [`plan.md`](./plan.md) §13. **All eight phases are impl
    prints and exports as vector like everything else. Per-species *textures*
    (as opposed to tones) are the one thing this gives up.
 
+## V3 — multi-stage builds, curves, interactive designer
+
+| Feature | What it does |
+|---|---|
+| Build stages | `exports/stages.ts` derives every step and numbers the glue-ups. Instructions and the on-screen timeline render from that one list, so they cannot disagree. The timeline chips expand to the full step text. |
+| Parabolic curves | Straight crosscuts whose chords trace a parabola — arch or lens, optional accent line following the curve, per-column miter angles in the cut list. |
+| Patch studio | Drag-and-drop designer on a snap lattice: 8 patch shapes, per-patch rotate/mirror, whole-design mirror H/V and rotate, resizable grid, live exact cut list. |
+
+The designer is deliberately constrained to a lattice and a fixed palette. Free
+placement would make an accurate cut list impossible; a lattice makes it
+arithmetic. This is the same trade quilt design software makes, and the research
+behind that choice is in the commit history.
+
 ## Verification
 
 ```bash
-npm test              # 134 tests
+npm test              # 163 tests
 npm run typecheck     # strict, clean
 npm run build         # dist/
 npm run build:single  # dist-single/index.html — one file, runs offline
@@ -47,6 +60,7 @@ node scripts/smoke.mjs /tmp/shots              # 13-step browser flow
 node scripts/cnc-check.mjs                     # CNC panel → toolpaths → G-code download
 node scripts/v2-check.mjs                      # block patterns + 3-D preview
 node scripts/singlefile-check.mjs              # single-file build from file://
+node scripts/v3-check.mjs                     # stages, curves, patch studio
 npx tsx scripts/blueprint-preview.mjs chevron /tmp/bp   # blueprint pages → PNG
 ```
 
@@ -70,6 +84,10 @@ earned its keep:
   the wrong cut direction for climb milling.
 - The canvas guarded on `rows.length === 0`, which is always true for polygon
   grids, so block patterns rendered blank.
+- The cut list grouped pieces by species and size only, so a square and a
+  half-square triangle of the same dimensions merged into one line — telling the
+  user to cut 15 squares when 11 of them needed a diagonal cut. Caught by reading
+  a rendered cut list, not by a test; now grouped by shape, with a regression test.
 
 ## Not built
 

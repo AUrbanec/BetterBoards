@@ -10,7 +10,7 @@ import type { BoardSpec } from '../engine/construction/types';
 import { TEMPLATES, TEMPLATE_BY_ID } from '../engine/patterns/templates';
 import { parseProject, serializeProject, type InventoryItem } from '../exports/project';
 
-export type ViewTab = 'top' | 'end' | 'slab' | '3d' | 'cnc';
+export type ViewTab = 'top' | 'end' | 'slab' | 'studio' | '3d' | 'cnc';
 export type SpeciesTab = 'browse' | 'match' | 'inventory';
 
 export interface ProjectMeta {
@@ -223,7 +223,7 @@ export const useStore = create<BBState>()((set, get) => ({
       future: [],
       selection: null,
       galleryOpen: false,
-      view: 'top',
+      view: board.construction.kind === 'patch' ? 'studio' : 'top',
     });
   },
 

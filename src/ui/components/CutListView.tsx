@@ -9,13 +9,20 @@ export function CutListView({ result, cutlist }: { result: PipelineResult; cutli
   const units = useStore((s) => s.units);
   const visual = useSpeciesVisual();
   const f = (nm: number) => formatCutDim(nm, units);
+  // Piece-based constructions cut shapes, not strips: a square and a
+  // half-square triangle share a size but not a cut, so name the shape.
+  const anyShapes = cutlist.ripSchedule.some((g) => g.pieceId);
 
   return (
     <div className="cutlist">
-      <h3>Rip schedule <span className="hint">glue-up #1</span></h3>
+      <h3>{anyShapes ? 'Piece schedule' : 'Rip schedule'} <span className="hint">{anyShapes ? 'cut these first' : 'glue-up #1'}</span></h3>
       <table>
         <thead>
-          <tr><th /><th>Species</th><th>Qty</th><th>Width</th><th>Thick</th><th>Length</th></tr>
+          <tr>
+            <th /><th>Species</th>
+            {anyShapes && <th>Shape</th>}
+            <th>Qty</th><th>Width</th><th>Thick</th><th>Length</th>
+          </tr>
         </thead>
         <tbody>
           {cutlist.ripSchedule.map((g, i) => {
@@ -24,8 +31,14 @@ export function CutListView({ result, cutlist }: { result: PipelineResult; cutli
               <tr key={i}>
                 <td><span className="species-swatch sm" style={{ background: v.hex }} /></td>
                 <td>{v.name}</td>
+                {anyShapes && (
+                  <td className="shape-cell">
+                    {g.pieceId ?? 'strip'}
+                    {g.angleDeg ? ` @${g.angleDeg}°` : ''}
+                  </td>
+                )}
                 <td className="num">{g.count}</td>
-                <td className="num">{f(g.width)}</td>
+                <td className="num">{g.width2 !== undefined ? `${f(g.width)}→${f(g.width2)}` : f(g.width)}</td>
                 <td className="num">{f(g.thickness)}</td>
                 <td className="num">{f(g.length)}</td>
               </tr>

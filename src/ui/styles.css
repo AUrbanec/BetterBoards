@@ -286,3 +286,48 @@ button.tiny { padding: 1px 6px; font-size: 10.5px; }
 .pack-bar i { display: block; border-right: 1px solid rgba(0, 0, 0, .28); min-width: 1px; }
 .pack-bar i:last-child { border-right: none; }
 .pack-offcut { background: repeating-linear-gradient(45deg, #eee 0 4px, #e2e2e2 4px 8px); }
+
+/* ---------- build stages ---------- */
+
+.stages { display: flex; flex-direction: column; gap: 5px; padding: 10px 0 2px; max-width: 100%; }
+.stages-head { display: flex; align-items: baseline; gap: 6px; font-size: 12px; }
+.stages-head b { color: var(--accent); }
+.stage-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.stage-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 7px; font-size: 10.5px; border-radius: 20px; position: relative;
+}
+.stage-chip i { font-style: normal; opacity: .6; }
+.stage-chip em {
+  font-style: normal; font-size: 9px; background: var(--accent); color: #fff;
+  border-radius: 8px; padding: 0 4px; margin-left: 1px;
+}
+.stage-chip.stage-glue { border-color: var(--accent); background: #fbf3ea; }
+.stage-chip.stage-open { outline: 2px solid var(--accent); }
+.stage-detail {
+  border: 1px solid var(--line); border-radius: var(--radius); padding: 8px 10px;
+  background: #fcfaf7; max-width: 720px; line-height: 1.5;
+}
+.stage-detail p { margin: 5px 0 0; white-space: pre-line; font-size: 12px; }
+.stage-detail .safety { color: var(--warn); border-left: 2px solid var(--warn); padding-left: 8px; }
+
+/* ---------- patch studio ---------- */
+
+.studio-toolbar { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+.studio-palette { display: flex; gap: 4px; flex-wrap: wrap; }
+.palette-chip { padding: 3px; line-height: 0; cursor: grab; }
+.palette-chip:active { cursor: grabbing; }
+.palette-chip svg { display: block; }
+.palette-on { border-color: var(--accent); background: #fbf3ea; outline: 1px solid var(--accent); }
+.studio-species { display: flex; flex-direction: column; gap: 4px; }
+.studio-species label { display: flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--faint); }
+.studio-species select { max-width: 190px; }
+.studio-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.studio-actions button { font-size: 11.5px; }
+.studio-size { display: flex; gap: 8px; align-items: center; color: var(--faint); font-size: 11px; margin-left: auto; }
+.studio-size label { display: inline-flex; align-items: center; gap: 3px; }
+.studio-size input { width: 52px; }
+.studio-grid { border-radius: 6px; touch-action: none; cursor: crosshair; box-shadow: 0 2px 8px rgba(60, 40, 20, .18); }
+.studio-help { max-width: 640px; text-align: center; }
+.studio-help b { color: var(--ink); }
+.cutlist .shape-cell { color: var(--faint); font-size: 11px; }
