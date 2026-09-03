@@ -245,6 +245,69 @@ details.advanced summary { cursor: pointer; color: var(--faint); font-size: 11.5
 .export-grid button { display: flex; flex-direction: column; gap: 3px; text-align: left; padding: 9px 11px; }
 .export-grid small { color: var(--faint); line-height: 1.35; }
 
+/* ---------- photo relief planner ---------- */
+
+.relief-launch { border-color: #b98a58; background: #fffaf3; color: #70451e; }
+.relief-backdrop { align-items: flex-start; overflow-y: auto; }
+.relief-modal { width: min(1180px, 100%); margin: 18px auto; max-height: none; }
+.relief-modal .modal-head p { margin: 3px 0 0; }
+.relief-drop {
+  min-height: 360px; margin: 18px 0; border: 2px dashed #c9aa85; border-radius: 12px;
+  background: linear-gradient(145deg, #fffdf9, #f5ece0); display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 8px; cursor: pointer; color: var(--faint);
+}
+.relief-drop:hover { border-color: var(--accent); }
+.relief-drop strong { color: var(--ink); font-size: 17px; }
+.relief-drop input { display: none; }
+.relief-drop-icon { font-size: 46px; color: var(--accent); line-height: 1; }
+.relief-layout { display: grid; grid-template-columns: minmax(360px, 1.35fr) minmax(260px, .65fr); gap: 18px; margin-top: 16px; }
+.relief-preview { background: #eee5d9; border-radius: 9px; min-height: 300px; padding: 12px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.relief-preview canvas { image-rendering: auto; width: 100%; height: auto; max-height: 420px; object-fit: contain; border-radius: 5px; box-shadow: 0 5px 18px rgba(55, 33, 16, .24); }
+.relief-preview .file-btn { align-self: flex-end; }
+.relief-legend { width: 100%; display: flex; align-items: center; gap: 7px; font-size: 10.5px; color: var(--faint); }
+.relief-legend i { flex: 1; height: 7px; border-radius: 5px; background: linear-gradient(90deg, #f6e0c7, #38281a); }
+.relief-controls { border: 1px solid var(--line); border-radius: 9px; padding: 4px 12px 12px; }
+.relief-fields { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.relief-fields label, .relief-slider { display: flex; flex-direction: column; gap: 4px; color: var(--faint); font-size: 11px; }
+.relief-fields input { width: 100%; }
+.relief-slider { margin: 11px 0; }
+.relief-slider span { display: flex; justify-content: space-between; }
+.relief-slider b { color: var(--ink); }
+.relief-plan { grid-column: 1 / -1; border-top: 1px solid var(--line); padding-top: 10px; }
+.relief-plan-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.relief-plan-head h3 { margin-bottom: 2px; }
+.relief-plan-head select { margin-left: 5px; }
+.depth-grid { display: grid; gap: 2px; padding: 7px; border: 1px solid var(--line); border-radius: 7px; background: #f7f3ed; }
+.depth-grid span { min-width: 0; padding: 5px 1px; text-align: center; border-radius: 2px; color: #2c2117; font: 10px ui-monospace, monospace; }
+.relief-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; margin: 10px 0; }
+.relief-summary div { background: #f7f3ed; border-radius: 6px; padding: 8px; display: flex; flex-direction: column; }
+.relief-summary b { font-size: 15px; color: var(--accent); }
+.relief-summary span { color: var(--faint); font-size: 10.5px; }
+.relief-steps { columns: 2; column-gap: 34px; padding-left: 20px; line-height: 1.45; }
+.relief-steps li { break-inside: avoid; margin: 0 0 8px; padding-left: 3px; }
+.relief-warning, .relief-note { background: #fff5dc; border-left: 3px solid var(--warn); padding: 8px 10px; line-height: 1.45; }
+.relief-note { margin: 14px 0 0; font-size: 11.5px; color: #6d551b; }
+.relief-actions { display: flex; justify-content: flex-end; gap: 7px; margin-top: 10px; }
+
+@media (max-width: 800px) {
+  .relief-layout { grid-template-columns: 1fr; }
+  .relief-plan { grid-column: 1; }
+  .relief-steps { columns: 1; }
+  .topbar-tools .relief-launch { display: none; }
+}
+
+@media print {
+  body * { visibility: hidden; }
+  .relief-modal, .relief-modal * { visibility: visible; }
+  .relief-backdrop { position: static; background: white; padding: 0; }
+  .relief-modal { position: absolute; inset: 0; width: 100%; margin: 0; padding: 10mm; box-shadow: none; }
+  .relief-controls, .relief-actions, .relief-preview .file-btn, .relief-modal .modal-head button { display: none; }
+  .relief-layout { grid-template-columns: 45% 55%; }
+  .relief-preview { min-height: 0; }
+  .relief-plan { grid-column: 2; border: 0; padding: 0; }
+  .relief-steps { columns: 1; }
+}
+
 @media (max-width: 1180px) {
   .workspace { grid-template-columns: 260px 1fr 300px; }
 }

@@ -11,6 +11,7 @@ import { InstructionsView } from './components/InstructionsView';
 import { LayerPanel } from './components/LayerPanel';
 import { SpeciesPanel } from './components/SpeciesPanel';
 import { TotalsBar } from './components/TotalsBar';
+import { PhotoRelief } from './components/PhotoRelief';
 
 type RightTab = 'species' | 'cutlist' | 'steps' | 'cnc';
 
@@ -27,6 +28,7 @@ export function App() {
   const setGalleryOpen = useStore((s) => s.setGalleryOpen);
   const setExportOpen = useStore((s) => s.setExportOpen);
   const [tab, setTab] = useState<RightTab>('species');
+  const [reliefOpen, setReliefOpen] = useState(false);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -60,6 +62,7 @@ export function App() {
             <option value="mm">mm</option>
           </select>
           <button onClick={() => setGalleryOpen(true)}>Templates</button>
+          <button className="relief-launch" onClick={() => setReliefOpen(true)}>Photo relief</button>
           <button className="primary" onClick={() => setExportOpen(true)}>Export</button>
         </div>
       </header>
@@ -86,6 +89,7 @@ export function App() {
       <TotalsBar result={result} cutlist={cutlist} lints={lints} />
       <Gallery />
       <ExportDrawer result={result} cutlist={cutlist} lints={lints} info={info} />
+      <PhotoRelief open={reliefOpen} onClose={() => setReliefOpen(false)} />
     </div>
   );
 }
